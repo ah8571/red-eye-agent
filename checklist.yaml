@@ -1,44 +1,148 @@
 # ─────────────────────────────────────────────────────────────
-# Task Checklist — define what the agent works on overnight
+# Task Checklist — self-improvement tasks for the autonomous agent
 # ─────────────────────────────────────────────────────────────
 # Status values: pending | in_progress | done | failed | timeout | budget_exceeded
+#
+# These tasks are for the agent to improve its own codebase.
+# Start simple, build up to more complex features.
 
 tasks:
+  # ── Reliability & Error Handling ──────────────────────────
+
   - id: 1
-    repo: "my-app"
+    repo: "autonomous-agent"
     description: >
-      Refactor the authentication middleware to validate JWT tokens
-      using the jose library instead of the current manual parsing.
-      Ensure all existing auth tests still pass.
+      Add retry logic with exponential backoff to the LLM API calls
+      in llm_client.py. When an API call fails with a transient error
+      (connection error, rate limit 429, server error 5xx), retry up
+      to 3 times with exponential backoff (2s, 4s, 8s). Log each
+      retry attempt. Do NOT retry on auth errors (401/403) or budget
+      exceeded. Add a max_retries field to the config under each
+      model provider section, defaulting to 3. Update config.yaml
+      to include the new field.
     status: pending
     context_files:
-      - "src/middleware/auth.js"
-      - "tests/auth.test.js"
+      - "llm_client.py"
+      - "config.yaml"
 
   - id: 2
-    repo: "my-app"
+    repo: "autonomous-agent"
     description: >
-      Add comprehensive unit tests for the user service module.
-      Cover all CRUD operations and edge cases (missing fields,
-      duplicate emails, invalid IDs).
+      Add retry logic to _parse_response() in task_executor.py.
+      If the LLM returns text that is not valid JSON, send one
+      follow-up message saying "Your previous response was not
+      valid JSON. Please respond with valid JSON only following
+      the exact schema." Include the original task context.
+      Only retry once — if the second response is also invalid,
+      raise the error as before. Log the retry attempt.
     status: pending
     context_files:
-      - "src/services/userService.js"
+      - "task_executor.py"
+      - "llm_client.py"
 
   - id: 3
-    repo: "my-app"
+    repo: "autonomous-agent"
     description: >
-      Add request rate limiting middleware using express-rate-limit.
-      Configure 100 requests per 15-minute window per IP.
-      Add tests for the rate limiter.
+      Add input validation for checklist.yaml at startup in
+      agent_runner.py. Create a new function validate_checklist()
+      that checks: (a) the file has a "tasks" key that is a list,
+      (b) each task has required fields: id (int), repo (str),
+      description (str), status (str), (c) all task IDs are unique,
+      (d) status values are one of the allowed values. If validation
+      fails, log a clear error and exit with code 1. Call this
+      function right after load_checklist() in the run() function.
     status: pending
     context_files:
-      - "src/app.js"
-      - "package.json"
+      - "agent_runner.py"
+      - "checklist.yaml"
 
-  # Add more tasks as needed:
-  # - id: 4
-  #   repo: "backend-api"        # Can target a different repo
-  #   description: "..."
-  #   status: pending
-  #   context_files: []
+  - id: 4
+    repo: "autonomous-agent"
+    description: >
+      Add config validation in agent_runner.py. Create a function
+      validate_config() that checks: (a) default_provider is one
+      of "openai", "anthropic", "deepseek", (b) the models section
+      has a config entry for the default_provider, (c) budget has
+      max_cost_per_run as a positive number, (d) repos is a non-empty
+      list where each entry has "name" and "url" keys. Log clear
+      errors and exit with code 1 on failure. Call it right after
+      load_config() in run().
+    status: pending
+    context_files:
+      - "agent_runner.py"
+      - "config.yaml"
+
+  # ── Security Fix ──────────────────────────────────────────
+
+  - id: 5
+    repo: "autonomous-agent"
+    description: >
+      Fix the path traversal vulnerability in the _apply_changes()
+      method of task_executor.py. Currently, when the action is
+      "delete", the code directly builds a path and deletes it
+      without the path traversal check that read_file() and
+      write_file() already have. Add the same check: resolve the
+      full_path and verify it is relative to self.git.workspace_dir
+      using is_relative_to(). If not, log a warning and skip the
+      delete. Also add the check for "edit" and "create" actions
+      before calling self.git.write_file() as a defense-in-depth
+      measure.
+    status: pending
+    context_files:
+      - "task_executor.py"
+      - "git_manager.py"
+
+  # ── Reporting ─────────────────────────────────────────────
+
+  - id: 6
+    repo: "autonomous-agent"
+    description: >
+      Create a run report generator. Add a new file report.py with
+      a function generate_report(results, llm_usage, log_dir) that
+      writes a Markdown file "logs/run_report_YYYY-MM-DD.md" with:
+      (a) a summary table of all tasks (id, status, elapsed time),
+      (b) total token usage and cost from llm_usage.summary(),
+      (c) for each failed task, the error message and last 20 lines
+      of test output if available. Call generate_report() from
+      agent_runner.py at the end of the run() function, right after
+      saving results.json.
+    status: pending
+    context_files:
+      - "agent_runner.py"
+      - "llm_client.py"
+
+  # ── CLI & Usability ──────────────────────────────────────
+
+  - id: 7
+    repo: "autonomous-agent"
+    description: >
+      Add a --status flag to agent_runner.py that prints the current
+      checklist status and exits without running any tasks. It should
+      show a table with columns: ID, Repo, Status, and a truncated
+      description (first 60 chars). At the bottom, show counts of
+      pending/done/failed/etc tasks. Use simple string formatting,
+      no external dependencies. Add it as a mutually exclusive
+      option with --dry-run.
+    status: pending
+    context_files:
+      - "agent_runner.py"
+
+  - id: 8
+    repo: "autonomous-agent"
+    description: >
+      Create a README.md for the project. Include: (a) a one-line
+      description "Autonomous overnight coding agent powered by
+      DeepSeek/OpenAI/Anthropic", (b) a Features section listing
+      serial task execution, multi-repo support, budget tracking,
+      auto-retry on test failure, and per-task logging, (c) a
+      Quick Start section with steps: clone, create .env from
+      .env.example, edit config.yaml with repo URLs, edit
+      checklist.yaml with tasks, run with "python agent_runner.py",
+      (d) a Configuration section briefly describing config.yaml
+      and checklist.yaml, (e) a CLI flags section listing --dry-run,
+      --task, --repo, --config, --checklist. Keep it concise.
+    status: pending
+    context_files:
+      - "agent_runner.py"
+      - "config.yaml"
+      - ".env.example"
