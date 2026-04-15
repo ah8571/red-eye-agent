@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────
+# Task Checklist — define what the agent works on overnight
+# ─────────────────────────────────────────────────────────────
+# Status values: pending | in_progress | done | failed | timeout | budget_exceeded
+
+tasks:
+  - id: 1
+    repo: "my-app"
+    description: >
+      Refactor the authentication middleware to validate JWT tokens
+      using the jose library instead of the current manual parsing.
+      Ensure all existing auth tests still pass.
+    status: pending
+    context_files:
+      - "src/middleware/auth.js"
+      - "tests/auth.test.js"
+
+  - id: 2
+    repo: "my-app"
+    description: >
+      Add comprehensive unit tests for the user service module.
+      Cover all CRUD operations and edge cases (missing fields,
+      duplicate emails, invalid IDs).
+    status: pending
+    context_files:
+      - "src/services/userService.js"
+
+  - id: 3
+    repo: "my-app"
+    description: >
+      Add request rate limiting middleware using express-rate-limit.
+      Configure 100 requests per 15-minute window per IP.
+      Add tests for the rate limiter.
+    status: pending
+    context_files:
+      - "src/app.js"
+      - "package.json"
+
+  # Add more tasks as needed:
+  # - id: 4
+  #   repo: "backend-api"        # Can target a different repo
+  #   description: "..."
+  #   status: pending
+  #   context_files: []

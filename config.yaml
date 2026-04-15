@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────
+# Autonomous Agent Runner — Main Configuration
+# ─────────────────────────────────────────────────────────────
+
+# Default LLM provider: "deepseek", "openai", or "anthropic"
+default_provider: "deepseek"
+
+# Model settings per provider
+models:
+  deepseek:
+    model: "deepseek-chat"
+    max_tokens: 4096
+    temperature: 0.2
+  openai:
+    model: "gpt-4o"
+    max_tokens: 4096
+    temperature: 0.2
+  anthropic:
+    model: "claude-sonnet-4-20250514"
+    max_tokens: 4096
+    temperature: 0.2
+
+# Budget guardrails
+budget:
+  max_tokens_per_task: 100000      # Stop a task if it exceeds this
+  max_cost_per_run: 10.00          # USD — stop entire run if exceeded
+  max_retries_per_task: 2          # Retry a failed LLM call this many times
+
+# Timeouts
+timeouts:
+  task_timeout_seconds: 900        # 15 min per task
+  git_operation_seconds: 120       # 2 min for clone/push
+
+# Repos to work on — each gets its own workspace
+repos:
+  - name: "my-app"
+    url: "https://github.com/youruser/my-app.git"
+    branch_prefix: "agent/"        # Branch created as agent/overnight-<date>
+    default_branch: "main"
+    test_command: "npm test"       # Run after changes; null to skip
+    install_command: "npm install"
+    workspace_dir: "/workspace/my-app"
+
+  # Add more repos:
+  # - name: "backend-api"
+  #   url: "https://github.com/youruser/backend-api.git"
+  #   branch_prefix: "agent/"     # Each repo gets one branch per run
+  #   default_branch: "main"
+  #   test_command: "pytest"
+  #   install_command: "pip install -r requirements.txt"
+  #   workspace_dir: "/workspace/backend-api"
+
+# Logging
+logging:
+  log_dir: "./logs"
+  level: "INFO"                    # DEBUG for verbose output
+
+# Notifications (Phase 2 — WhatsApp via Twilio)
+notifications:
+  enabled: false
+  provider: "twilio"               # Only twilio for now
+  on_task_complete: true
+  on_task_fail: true
+  on_run_complete: true
+  # Twilio config lives in .env (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, etc.)
