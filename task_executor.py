@@ -67,6 +67,7 @@ class TaskExecutor:
         self.config = config
         self.branch_name = branch_name
         self.task_timeout = config.get("timeouts", {}).get("task_timeout_seconds", 900)
+        self._current_context = None  # store context for potential retry
 
     def execute(self, task: dict) -> dict:
         """
@@ -115,6 +116,7 @@ class TaskExecutor:
 
             # Step 3: Build context for the LLM
             context = self._build_context(description, context_files)
+            self._current_context = context  # store for retry
 
             # Step 4: Call LLM
             logger.info(f"Task {task_id}: Sending to LLM")
@@ -122,7 +124,7 @@ class TaskExecutor:
             response_text = self.llm.chat(messages, system_prompt=SYSTEM_PROMPT)
 
             # Step 5: Parse and apply changes
-            changes = self._parse_response(response_text)
+            changes = self._parse_response(response_text, context)
             result["plan"] = changes.get("plan", "")
             result["notes"] = changes.get("notes", "")
             result["commit_message"] = changes.get("commit_message", f"Task {task_id}: {description}")
@@ -200,8 +202,12 @@ class TaskExecutor:
 
         return "\n".join(parts)
 
-    def _parse_response(self, response_text: str) -> dict:
-        """Parse JSON response from LLM, handling markdown code fences."""
+    def _parse_response(self, response_text: str, original_context: str) -> dict:
+        """
+        Parse JSON response from LLM, handling markdown code fences.
+        If the response is not valid JSON, send one follow-up message asking for valid JSON.
+        Only retry once.
+        """
         text = response_text.strip()
 
         # Strip markdown code fences if present
@@ -217,9 +223,42 @@ class TaskExecutor:
         try:
             return json.loads(text)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response as JSON: {e}")
+            logger.warning(f"LLM response was not valid JSON, attempting retry: {e}")
             logger.debug(f"Raw response:\n{response_text[:500]}")
-            raise ValueError(f"LLM response was not valid JSON: {e}")
+            # Retry once
+            return self._retry_parse(original_context, response_text)
+
+    def _retry_parse(self, original_context: str, previous_response: str) -> dict:
+        """Send follow-up message asking for valid JSON and parse again."""
+        logger.info("Retrying LLM parse with follow-up message")
+        follow_up = (
+            f"{original_context}\n\n"
+            f"## Previous Invalid Response\n"
+            f"Your previous response was not valid JSON. Please respond with valid JSON only following the exact schema.\n"
+            f"Your previous response:\n"
+            f"```\n{previous_response[:1000]}\n```"
+        )
+        messages = [
+            {"role": "user", "content": original_context},
+            {"role": "assistant", "content": previous_response},
+            {"role": "user", "content": follow_up},
+        ]
+        response_text = self.llm.chat(messages, system_prompt=SYSTEM_PROMPT)
+        text = response_text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Second LLM response also invalid JSON: {e}")
+            logger.debug(f"Raw retry response:\n{response_text[:500]}")
+            raise ValueError(f"LLM response was not valid JSON after retry: {e}")
 
     def _apply_changes(self, changes: dict):
         """Apply file changes from the LLM response."""
@@ -255,7 +294,7 @@ class TaskExecutor:
         try:
             messages = [{"role": "user", "content": fix_prompt}]
             response_text = self.llm.chat(messages, system_prompt=SYSTEM_PROMPT)
-            changes = self._parse_response(response_text)
+            changes = self._parse_response(response_text, context)
             self._apply_changes(changes)
             return True
         except Exception as e:
