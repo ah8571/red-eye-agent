@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Request, Form, Depends, Response, status
+from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import yaml
 from pathlib import Path
+import os
 
 from web.auth import (
     init_users_db,
@@ -17,7 +18,8 @@ from web.config import (
     ALLOWED_EMAILS,
     SESSION_MAX_AGE,
     AGENT_CONFIG_PATH,
-    AGENT_CHECKLIST_PATH
+    AGENT_CHECKLIST_PATH,
+    AGENT_LOG_DIR
 )
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
@@ -145,5 +147,109 @@ async def dashboard(
             "user_email": user_email,
             "repos": repos,
             "task_counts": task_counts
+        }
+    )
+
+
+@app.get("/checklist", response_class=HTMLResponse)
+async def checklist_page(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Display checklist tasks in a table."""
+    tasks = []
+    if AGENT_CHECKLIST_PATH.exists():
+        with open(AGENT_CHECKLIST_PATH, 'r') as f:
+            checklist = yaml.safe_load(f)
+            tasks = checklist.get('tasks', [])
+    
+    # Process tasks for display
+    for task in tasks:
+        # Truncate description to 80 chars
+        desc = task.get('description', '')
+        if len(desc) > 80:
+            task['description_display'] = desc[:80] + '...'
+        else:
+            task['description_display'] = desc
+        
+        # Determine status color
+        status = task.get('status', 'pending').lower()
+        if status == 'completed':
+            task['status_color'] = 'success'
+        elif status == 'failed':
+            task['status_color'] = 'danger'
+        else:
+            task['status_color'] = 'warning'
+    
+    return templates.TemplateResponse(
+        "checklist.html",
+        {
+            "request": request,
+            "user_email": user_email,
+            "tasks": tasks
+        }
+    )
+
+
+@app.get("/runs", response_class=HTMLResponse)
+async def runs_list(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """List all run log files sorted newest first."""
+    if not AGENT_LOG_DIR.exists():
+        AGENT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    
+    log_files = []
+    for file_path in AGENT_LOG_DIR.iterdir():
+        if file_path.is_file():
+            stat = file_path.stat()
+            log_files.append({
+                'name': file_path.name,
+                'size': stat.st_size,
+                'modified': stat.st_mtime
+            })
+    
+    # Sort by modified time descending (newest first)
+    log_files.sort(key=lambda x: x['modified'], reverse=True)
+    
+    return templates.TemplateResponse(
+        "runs.html",
+        {
+            "request": request,
+            "user_email": user_email,
+            "log_files": log_files
+        }
+    )
+
+
+@app.get("/runs/{filename}", response_class=HTMLResponse)
+async def run_detail(
+    request: Request,
+    filename: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Display contents of a specific log file."""
+    # Validate filename to prevent path traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    log_path = AGENT_LOG_DIR / filename
+    if not log_path.exists() or not log_path.is_file():
+        raise HTTPException(status_code=404, detail="Log file not found")
+    
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception:
+        content = "Unable to read log file"
+    
+    return templates.TemplateResponse(
+        "run_detail.html",
+        {
+            "request": request,
+            "user_email": user_email,
+            "filename": filename,
+            "content": content
         }
     )
