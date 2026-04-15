@@ -7,6 +7,7 @@ and produces a summary when done.
 Usage:
     python agent_runner.py                     # Run all pending tasks
     python agent_runner.py --dry-run           # Plan only, no changes
+    python agent_runner.py --status            # Show checklist status and exit
     python agent_runner.py --task 3            # Run only task 3
     python agent_runner.py --repo my-app       # Run tasks for one repo only
 """
@@ -123,6 +124,57 @@ def build_repo_map(config: dict) -> dict[str, GitManager]:
     return repos
 
 
+def show_status(checklist: dict):
+    """Print checklist status table and summary counts."""
+    tasks = checklist.get("tasks", [])
+    
+    if not tasks:
+        print("No tasks in checklist.")
+        return
+    
+    # Table header
+    header = f"{'ID':<4} {'Repo':<20} {'Status':<15} Description"
+    print(header)
+    print("-" * len(header))
+    
+    # Counters
+    counts = {
+        "pending": 0,
+        "in_progress": 0,
+        "done": 0,
+        "failed": 0,
+        "timeout": 0,
+        "budget_exceeded": 0,
+        "dry_run": 0,
+    }
+    
+    for task in tasks:
+        task_id = task["id"]
+        repo = task["repo"]
+        status = task["status"]
+        description = task["description"]
+        
+        # Truncate description to 60 chars
+        if len(description) > 60:
+            description = description[:57] + "..."
+        
+        # Update counts
+        if status in counts:
+            counts[status] += 1
+        
+        # Print row
+        print(f"{task_id:<4} {repo:<20} {status:<15} {description}")
+    
+    # Summary
+    print("\nSummary:")
+    for status, count in counts.items():
+        if count > 0:
+            print(f"  {status}: {count}")
+    
+    total = len(tasks)
+    print(f"\nTotal tasks: {total}")
+
+
 def run(args):
     """Main run loop."""
     load_dotenv()
@@ -132,6 +184,11 @@ def run(args):
     
     # Validate checklist
     validate_checklist(checklist, args.checklist)
+
+    # If --status flag is set, show status and exit
+    if args.status:
+        show_status(checklist)
+        return
 
     # Setup logging
     log_cfg = config.get("logging", {})
@@ -290,7 +347,12 @@ def main():
     parser = argparse.ArgumentParser(description="Autonomous Agent Runner")
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--checklist", default="checklist.yaml", help="Path to checklist file")
-    parser.add_argument("--dry-run", action="store_true", help="Plan only, no changes")
+    
+    # Mutually exclusive group for --dry-run and --status
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--dry-run", action="store_true", help="Plan only, no changes")
+    group.add_argument("--status", action="store_true", help="Show checklist status and exit")
+    
     parser.add_argument("--task", type=int, help="Run a specific task ID only")
     parser.add_argument("--repo", type=str, help="Run tasks for a specific repo only")
     args = parser.parse_args()
