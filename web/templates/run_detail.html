@@ -1,23 +1,8 @@
 {% extends "base.html" %}
-
-{% block title %}Log: {{ filename }} - Red-Eye Agent Dashboard{% endblock %}
-
+{% block title %}Run Log — Red-Eye Agent{% endblock %}
 {% block content %}
-<div class="container mt-4">
-    <h1>Log File: {{ filename }}</h1>
-    <p class="lead">Contents of the selected log file</p>
-    
-    <div class="mb-3">
-        <a href="/runs" class="btn btn-secondary">Back to Run Logs</a>
-    </div>
-    
-    <div class="card">
-        <div class="card-header">
-            <strong>{{ filename }}</strong>
-        </div>
-        <div class="card-body p-0">
-            <pre class="m-0 p-3" style="background-color: #f8f9fa; max-height: 70vh; overflow: auto;"><code>{{ content }}</code></pre>
-        </div>
-    </div>
+<div class="card">
+    <h2>{{ filename }}</h2>
+    <pre style="background-color: #0f3460; color: #eee; padding: 1rem; border-radius: 8px; overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; margin-top: 1rem;">{{ log_content }}</pre>
 </div>
 {% endblock %}

@@ -1,45 +1,38 @@
 {% extends "base.html" %}
-
-{% block title %}Checklist - Red-Eye Agent Dashboard{% endblock %}
-
+{% block title %}Checklist — Red-Eye Agent{% endblock %}
 {% block content %}
-<div class="container mt-4">
-    <h1>Task Checklist</h1>
-    <p class="lead">Overview of all tasks from checklist.yaml</p>
-    
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th scope="col">ID</th>
-                    <th scope="col">Repo</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Description</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for task in tasks %}
-                <tr>
-                    <td>{{ task.id }}</td>
-                    <td>{{ task.repo }}</td>
-                    <td>
-                        <span class="badge bg-{{ task.status_color }}">
-                            {{ task.status }}
-                        </span>
-                    </td>
-                    <td>{{ task.description_display }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="text-center text-muted">No tasks found in checklist.yaml</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="mt-3">
-        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
-    </div>
+<div class="card">
+    <h2>Task Checklist</h2>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.5rem;">ID</th>
+                <th style="text-align: left; padding: 0.5rem;">Repo</th>
+                <th style="text-align: left; padding: 0.5rem;">Status</th>
+                <th style="text-align: left; padding: 0.5rem;">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.5rem;">{{ task.id }}</td>
+                <td style="padding: 0.5rem;">{{ task.repo }}</td>
+                <td style="padding: 0.5rem;">
+                    {% set status = task.status %}
+                    {% if status == 'done' %}
+                        <span style="background-color: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.875rem;">{{ status }}</span>
+                    {% elif status == 'failed' %}
+                        <span style="background-color: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.875rem;">{{ status }}</span>
+                    {% elif status == 'pending' %}
+                        <span style="background-color: #f59e0b; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.875rem;">{{ status }}</span>
+                    {% else %}
+                        <span style="background-color: #6b7280; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.875rem;">{{ status }}</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 0.5rem;">{{ task.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}
