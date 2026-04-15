@@ -39,6 +39,77 @@ def load_checklist(path: str = "checklist.yaml") -> dict:
         return yaml.safe_load(f)
 
 
+def validate_checklist(checklist: dict, path: str = "checklist.yaml"):
+    """Validate checklist structure and content.
+    
+    Checks:
+    - The file has a "tasks" key that is a list.
+    - Each task has required fields: id (int), repo (str), description (str), status (str).
+    - All task IDs are unique.
+    - Status values are one of the allowed values.
+    
+    If validation fails, log a clear error and exit with code 1.
+    """
+    allowed_statuses = {"pending", "in_progress", "done", "failed", "timeout", "budget_exceeded", "dry_run"}
+    
+    # Check if 'tasks' key exists and is a list
+    if "tasks" not in checklist:
+        logger.error(f"Checklist validation failed: Missing 'tasks' key in {path}")
+        sys.exit(1)
+    
+    tasks = checklist["tasks"]
+    if not isinstance(tasks, list):
+        logger.error(f"Checklist validation failed: 'tasks' must be a list in {path}")
+        sys.exit(1)
+    
+    # Check each task
+    seen_ids = set()
+    for i, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            logger.error(f"Checklist validation failed: Task at index {i} is not a dictionary in {path}")
+            sys.exit(1)
+        
+        # Required fields
+        required_fields = ["id", "repo", "description", "status"]
+        for field in required_fields:
+            if field not in task:
+                logger.error(f"Checklist validation failed: Task {task.get('id', f'index {i}')} missing required field '{field}' in {path}")
+                sys.exit(1)
+        
+        # id must be int
+        if not isinstance(task["id"], int):
+            logger.error(f"Checklist validation failed: Task {task['id']} 'id' must be an integer in {path}")
+            sys.exit(1)
+        
+        # repo must be str
+        if not isinstance(task["repo"], str):
+            logger.error(f"Checklist validation failed: Task {task['id']} 'repo' must be a string in {path}")
+            sys.exit(1)
+        
+        # description must be str
+        if not isinstance(task["description"], str):
+            logger.error(f"Checklist validation failed: Task {task['id']} 'description' must be a string in {path}")
+            sys.exit(1)
+        
+        # status must be str and allowed value
+        if not isinstance(task["status"], str):
+            logger.error(f"Checklist validation failed: Task {task['id']} 'status' must be a string in {path}")
+            sys.exit(1)
+        
+        if task["status"] not in allowed_statuses:
+            logger.error(f"Checklist validation failed: Task {task['id']} has invalid status '{task['status']}'. Allowed values: {', '.join(sorted(allowed_statuses))} in {path}")
+            sys.exit(1)
+        
+        # Check uniqueness of id
+        task_id = task["id"]
+        if task_id in seen_ids:
+            logger.error(f"Checklist validation failed: Duplicate task ID {task_id} in {path}")
+            sys.exit(1)
+        seen_ids.add(task_id)
+    
+    logger.info(f"Checklist validation passed for {path}")
+
+
 def save_checklist(data: dict, path: str = "checklist.yaml"):
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
@@ -58,6 +129,9 @@ def run(args):
 
     config = load_config(args.config)
     checklist = load_checklist(args.checklist)
+    
+    # Validate checklist
+    validate_checklist(checklist, args.checklist)
 
     # Setup logging
     log_cfg = config.get("logging", {})
