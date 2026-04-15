@@ -26,6 +26,7 @@ from git_manager import GitManager
 from llm_client import LLMClient, BudgetExceededError
 from task_executor import TaskExecutor
 from logger_setup import setup_logging, get_task_logger
+from report import generate_report
 
 logger = logging.getLogger("agent.runner")
 
@@ -377,6 +378,21 @@ def run(args):
     with open(results_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, default=str)
     logger.info(f"Results saved to {results_file}")
+    
+    # Generate run report
+    try:
+        # Prepare usage stats object with required attributes
+        class UsageStatsWrapper:
+            def __init__(self, usage):
+                self.input_tokens = usage.prompt_tokens
+                self.output_tokens = usage.completion_tokens
+                self.estimated_cost = usage.total_cost_usd
+        
+        usage_stats = UsageStatsWrapper(llm.usage)
+        report_path = generate_report(results, usage_stats, log_dir)
+        logger.info(f"Run report generated: {report_path}")
+    except Exception as e:
+        logger.error(f"Failed to generate run report: {e}")
 
 
 def _print_summary(results: list[dict], llm: LLMClient):
