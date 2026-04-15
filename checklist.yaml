@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# Task Checklist — self-improvement tasks for the autonomous agent
+# Task Checklist — self-improvement tasks for Red-Eye Agent
 # ─────────────────────────────────────────────────────────────
 # Status values: pending | in_progress | done | failed | timeout | budget_exceeded
 #
@@ -10,7 +10,7 @@ tasks:
   # ── Reliability & Error Handling ──────────────────────────
 
   - id: 1
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Add retry logic with exponential backoff to the LLM API calls
       in llm_client.py. When an API call fails with a transient error
@@ -26,7 +26,7 @@ tasks:
       - "config.yaml"
 
   - id: 2
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Add retry logic to _parse_response() in task_executor.py.
       If the LLM returns text that is not valid JSON, send one
@@ -41,7 +41,7 @@ tasks:
       - "llm_client.py"
 
   - id: 3
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Add input validation for checklist.yaml at startup in
       agent_runner.py. Create a new function validate_checklist()
@@ -57,7 +57,7 @@ tasks:
       - "checklist.yaml"
 
   - id: 4
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Add config validation in agent_runner.py. Create a function
       validate_config() that checks: (a) default_provider is one
@@ -75,7 +75,7 @@ tasks:
   # ── Security Fix ──────────────────────────────────────────
 
   - id: 5
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Fix the path traversal vulnerability in the _apply_changes()
       method of task_executor.py. Currently, when the action is
@@ -95,7 +95,7 @@ tasks:
   # ── Reporting ─────────────────────────────────────────────
 
   - id: 6
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Create a run report generator. Add a new file report.py with
       a function generate_report(results, llm_usage, log_dir) that
@@ -114,7 +114,7 @@ tasks:
   # ── CLI & Usability ──────────────────────────────────────
 
   - id: 7
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Add a --status flag to agent_runner.py that prints the current
       checklist status and exits without running any tasks. It should
@@ -128,10 +128,10 @@ tasks:
       - "agent_runner.py"
 
   - id: 8
-    repo: "autonomous-agent"
+    repo: "red-eye-agent"
     description: >
       Create a README.md for the project. Include: (a) a one-line
-      description "Autonomous overnight coding agent powered by
+      description "Red-Eye Agent — autonomous overnight coding agent powered by
       DeepSeek/OpenAI/Anthropic", (b) a Features section listing
       serial task execution, multi-repo support, budget tracking,
       auto-retry on test failure, and per-task logging, (c) a

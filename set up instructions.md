@@ -1,4 +1,4 @@
-# Autonomous Agent — Setup Instructions
+# Red-Eye Agent — Setup Instructions
 
 ---
 
@@ -67,7 +67,7 @@ su - agent
 
 ```bash
 # Clone this project onto the Droplet
-git clone https://github.com/<youruser>/autonomous-agent.git ~/agent
+git clone https://github.com/ah8571/red-eye-agent.git ~/agent
 cd ~/agent
 
 # Create virtual environment
@@ -85,6 +85,7 @@ nano .env   # Fill in your API keys
 ### Required environment variables
 | Variable | Description |
 |---|---|
+| `DEEPSEEK_API_KEY` | DeepSeek API key (default provider) |
 | `OPENAI_API_KEY` | OpenAI API key (if using OpenAI models) |
 | `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude models) |
 | `GITHUB_PAT` | Fine-grained GitHub PAT with `contents:write` on target repos |

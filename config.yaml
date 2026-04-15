@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# Autonomous Agent Runner — Main Configuration
+# Red-Eye Agent — Main Configuration
 # ─────────────────────────────────────────────────────────────
 
 # Default LLM provider: "deepseek", "openai", or "anthropic"
@@ -33,13 +33,13 @@ timeouts:
 
 # Repos to work on — each gets its own workspace
 repos:
-  - name: "my-app"
-    url: "https://github.com/youruser/my-app.git"
+  - name: "red-eye-agent"
+    url: "https://github.com/ah8571/red-eye-agent.git"
     branch_prefix: "agent/"        # Branch created as agent/overnight-<date>
     default_branch: "main"
-    test_command: "npm test"       # Run after changes; null to skip
-    install_command: "npm install"
-    workspace_dir: "/workspace/my-app"
+    test_command: null              # No tests yet
+    install_command: "pip install -r requirements.txt"
+    workspace_dir: "/workspace/red-eye-agent"
 
   # Add more repos:
   # - name: "backend-api"
