@@ -37,7 +37,7 @@ repos:
     url: "https://github.com/ah8571/red-eye-agent.git"
     branch_prefix: "agent/"        # Branch created as agent/overnight-<date>
     default_branch: "main"
-    test_command: null              # No tests yet
+    test_command: "python -m unittest discover tests"  # Updated from null
     install_command: "pip install -r requirements.txt"
     workspace_dir: "/workspace/red-eye-agent"
 
