@@ -146,12 +146,32 @@ class LLMClient:
         logger.debug(f"OpenAI request: model={model}, messages={len(full_messages)}")
         start = time.time()
 
-        response = self.openai_client.chat.completions.create(
-            model=model,
-            messages=full_messages,
-            max_tokens=model_cfg.get("max_tokens", 4096),
-            temperature=model_cfg.get("temperature", 0.2),
-        )
+        max_retries = self.budget.get("max_retries_per_task", 2)
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model=model,
+                    messages=full_messages,
+                    max_tokens=model_cfg.get("max_tokens", 4096),
+                    temperature=model_cfg.get("temperature", 0.2),
+                )
+                break
+            except (openai.RateLimitError, openai.APIConnectionError) as e:
+                if attempt == max_retries:
+                    raise
+                wait = 2 ** (attempt + 1)  # 2, 4, 8 seconds
+                logger.warning(f"OpenAI transient error: {e}. Retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+            except openai.APIStatusError as e:
+                # Retry only on server errors (5xx), not client errors like 401/403
+                if e.status_code >= 500:
+                    if attempt == max_retries:
+                        raise
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(f"OpenAI server error {e.status_code}: {e}. Retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait)
+                else:
+                    raise
 
         elapsed = time.time() - start
         usage = response.usage
@@ -179,7 +199,17 @@ class LLMClient:
         if system_prompt:
             kwargs["system"] = system_prompt
 
-        response = self.anthropic_client.messages.create(**kwargs)
+        max_retries = self.budget.get("max_retries_per_task", 2)
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.anthropic_client.messages.create(**kwargs)
+                break
+            except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
+                if attempt == max_retries:
+                    raise
+                wait = 2 ** (attempt + 1)  # 2, 4, 8 seconds
+                logger.warning(f"Anthropic transient error: {e}. Retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
 
         elapsed = time.time() - start
         self.usage.record(
@@ -204,12 +234,32 @@ class LLMClient:
         logger.debug(f"DeepSeek request: model={model}, messages={len(full_messages)}")
         start = time.time()
 
-        response = self.deepseek_client.chat.completions.create(
-            model=model,
-            messages=full_messages,
-            max_tokens=model_cfg.get("max_tokens", 4096),
-            temperature=model_cfg.get("temperature", 0.2),
-        )
+        max_retries = self.budget.get("max_retries_per_task", 2)
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.deepseek_client.chat.completions.create(
+                    model=model,
+                    messages=full_messages,
+                    max_tokens=model_cfg.get("max_tokens", 4096),
+                    temperature=model_cfg.get("temperature", 0.2),
+                )
+                break
+            except (openai.RateLimitError, openai.APIConnectionError) as e:
+                if attempt == max_retries:
+                    raise
+                wait = 2 ** (attempt + 1)  # 2, 4, 8 seconds
+                logger.warning(f"DeepSeek transient error: {e}. Retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+            except openai.APIStatusError as e:
+                # Retry only on server errors (5xx), not client errors like 401/403
+                if e.status_code >= 500:
+                    if attempt == max_retries:
+                        raise
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(f"DeepSeek server error {e.status_code}: {e}. Retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait)
+                else:
+                    raise
 
         elapsed = time.time() - start
         usage = response.usage
