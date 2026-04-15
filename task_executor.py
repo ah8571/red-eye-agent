@@ -266,13 +266,24 @@ class TaskExecutor:
             action = change.get("action")
             file_path = change.get("file")
 
+            # Build full path and check for path traversal
+            full_path = self.git.workspace_dir / file_path
+            try:
+                resolved = full_path.resolve()
+                if not resolved.is_relative_to(self.git.workspace_dir.resolve()):
+                    logger.warning(f"Path traversal blocked for {action} on {file_path}")
+                    continue
+            except Exception as e:
+                logger.warning(f"Path resolution failed for {file_path}: {e}")
+                continue
+
             if action == "create" or action == "edit":
                 content = change.get("content", "")
+                # Defense-in-depth: also call git.write_file which has its own check
                 self.git.write_file(file_path, content)
                 logger.info(f"Applied {action}: {file_path}")
 
             elif action == "delete":
-                full_path = self.git.workspace_dir / file_path
                 if full_path.exists():
                     full_path.unlink()
                     logger.info(f"Deleted: {file_path}")
