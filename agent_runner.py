@@ -10,6 +10,7 @@ Usage:
     python agent_runner.py --status            # Show checklist status and exit
     python agent_runner.py --task 3            # Run only task 3
     python agent_runner.py --repo my-app       # Run tasks for one repo only
+    python agent_runner.py --rerun-failed      # Reset failed tasks to pending and run
 """
 
 import argparse
@@ -257,6 +258,32 @@ def run(args):
         show_status(checklist)
         return
 
+    # If --rerun-failed flag is set, reset failed tasks to pending
+    if args.rerun_failed:
+        tasks = checklist.get("tasks", [])
+        failed_tasks = [t for t in tasks if t.get("status") == "failed"]
+        
+        # Apply repo filter if provided
+        if args.repo:
+            failed_tasks = [t for t in failed_tasks if t.get("repo") == args.repo]
+        
+        # Apply task filter if provided
+        if args.task:
+            failed_tasks = [t for t in failed_tasks if t.get("id") == args.task]
+        
+        # Reset status to pending
+        reset_count = 0
+        for task in failed_tasks:
+            task["status"] = "pending"
+            reset_count += 1
+        
+        if reset_count > 0:
+            # Save the updated checklist
+            save_checklist(checklist, args.checklist)
+            logger.info(f"Reset {reset_count} failed task(s) to pending status")
+        else:
+            logger.info("No failed tasks to reset (after applying filters if any)")
+
     # Setup logging
     log_cfg = config.get("logging", {})
     log_dir = setup_logging(
@@ -437,6 +464,7 @@ def main():
     
     parser.add_argument("--task", type=int, help="Run a specific task ID only")
     parser.add_argument("--repo", type=str, help="Run tasks for a specific repo only")
+    parser.add_argument("--rerun-failed", action="store_true", help="Reset failed tasks to pending before running")
     args = parser.parse_args()
 
     try:
