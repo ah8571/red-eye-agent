@@ -35,6 +35,63 @@ def load_config(path: str = "config.yaml") -> dict:
         return yaml.safe_load(f)
 
 
+def validate_config(config: dict) -> list[str]:
+    """Validate configuration structure.
+    
+    Returns a list of error messages. Empty list means config is valid.
+    """
+    errors = []
+    
+    # (a) default_provider is one of "openai", "anthropic", "deepseek"
+    allowed_providers = {"openai", "anthropic", "deepseek"}
+    default_provider = config.get("default_provider")
+    if default_provider not in allowed_providers:
+        errors.append(
+            f"Invalid default_provider: '{default_provider}'. "
+            f"Must be one of {', '.join(sorted(allowed_providers))}."
+        )
+    
+    # (b) models section has a config entry for the default_provider
+    models = config.get("models")
+    if not isinstance(models, dict):
+        errors.append("Missing or invalid 'models' section (must be a dictionary).")
+    elif default_provider and default_provider not in models:
+        errors.append(
+            f"Missing model configuration for default_provider '{default_provider}' in 'models' section."
+        )
+    
+    # (c) budget has max_cost_per_run as a positive number
+    budget = config.get("budget")
+    if not isinstance(budget, dict):
+        errors.append("Missing or invalid 'budget' section (must be a dictionary).")
+    else:
+        max_cost = budget.get("max_cost_per_run")
+        if max_cost is None:
+            errors.append("Missing 'max_cost_per_run' in budget section.")
+        elif not isinstance(max_cost, (int, float)):
+            errors.append("'max_cost_per_run' must be a number.")
+        elif max_cost <= 0:
+            errors.append("'max_cost_per_run' must be a positive number.")
+    
+    # (d) repos is a non-empty list where each entry has "name" and "url" keys
+    repos = config.get("repos")
+    if not isinstance(repos, list):
+        errors.append("'repos' must be a list.")
+    elif len(repos) == 0:
+        errors.append("'repos' list cannot be empty.")
+    else:
+        for i, repo in enumerate(repos):
+            if not isinstance(repo, dict):
+                errors.append(f"Repo entry at index {i} is not a dictionary.")
+                continue
+            if "name" not in repo:
+                errors.append(f"Repo entry at index {i} missing 'name' key.")
+            if "url" not in repo:
+                errors.append(f"Repo entry at index {i} missing 'url' key.")
+    
+    return errors
+
+
 def load_checklist(path: str = "checklist.yaml") -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -180,6 +237,15 @@ def run(args):
     load_dotenv()
 
     config = load_config(args.config)
+    
+    # Validate config
+    config_errors = validate_config(config)
+    if config_errors:
+        logger.error("Configuration validation failed:")
+        for err in config_errors:
+            logger.error(f"  - {err}")
+        sys.exit(1)
+    
     checklist = load_checklist(args.checklist)
     
     # Validate checklist
