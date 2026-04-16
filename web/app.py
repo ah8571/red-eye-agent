@@ -295,6 +295,62 @@ async def run_detail(
     )
 
 
+@app.get("/command-center", response_class=HTMLResponse)
+async def command_center(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Command center page showing repos and active runs."""
+    # Load repos from config.yaml
+    repos = []
+    if AGENT_CONFIG_PATH.exists():
+        with open(AGENT_CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+            repos = config.get('repos', [])
+    
+    # Get active runs via RunManager
+    manager = RunManager()
+    active_runs = manager.list_runs()
+    
+    return templates.TemplateResponse(
+        request,
+        "command_center.html",
+        {
+            "user_email": user_email,
+            "repos": repos,
+            "active_runs": active_runs
+        }
+    )
+
+
+@app.get("/command-center/{run_id}/logs", response_class=HTMLResponse)
+async def run_logs_page(
+    request: Request,
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Page showing live logs for a specific run."""
+    # Validate run_id to prevent path traversal
+    if '..' in run_id or '/' in run_id or '\\' in run_id:
+        raise HTTPException(status_code=400, detail="Invalid run ID")
+    
+    # Verify run exists via RunManager
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    return templates.TemplateResponse(
+        request,
+        "run_logs.html",
+        {
+            "user_email": user_email,
+            "run_id": run_id
+        }
+    )
+
+
 @app.post("/checklist/save")
 async def checklist_save(
     request: Request,

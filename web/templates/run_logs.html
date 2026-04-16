@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Run Logs — Red-Eye Agent{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Logs for Run: {{ run_id }}</h2>
+    <p>
+        <a href="/command-center">← Back to Command Center</a>
+    </p>
+    <pre id="log-content" style="white-space: pre-wrap; word-wrap: break-word; max-height: 70vh; overflow-y: auto;">Loading logs...</pre>
+</div>
+
+<script>
+    function fetchLogs() {
+        fetch(`/api/runs/{{ run_id }}/logs`)
+            .then(response => response.json())
+            .then(data => {
+                const logContent = document.getElementById('log-content');
+                logContent.textContent = data.lines.join('\n');
+                // Auto-scroll to bottom
+                logContent.scrollTop = logContent.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Error fetching logs:', error);
+            });
+    }
+
+    // Fetch logs immediately and then every 5 seconds
+    fetchLogs();
+    setInterval(fetchLogs, 5000);
+</script>
+{% endblock %}
