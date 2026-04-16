@@ -165,6 +165,11 @@ async def dashboard(
             if f.is_file():
                 recent_runs.append({"filename": f.name, "date": f.name.replace("run_", "").replace(".log", "")})
     
+    # Active runs from RunManager
+    manager = RunManager()
+    all_runs = manager.list_runs()
+    active_runs = [run for run in all_runs if run.get("status") == "running"]
+    
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -172,7 +177,8 @@ async def dashboard(
             "user_email": user_email,
             "repos": repos,
             "tasks": task_counts,
-            "recent_runs": recent_runs
+            "recent_runs": recent_runs,
+            "active_runs": active_runs
         }
     )
 

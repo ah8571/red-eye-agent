@@ -5,6 +5,8 @@
 {% block content %}
 <h1>Dashboard</h1>
 
+<a href="/command-center" style="display: inline-block; background-color: #10b981; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; margin-bottom: 1.5rem;">Launch New Run</a>
+
 <div class="card">
     <h2>Summary</h2>
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
@@ -25,6 +27,34 @@
             <p style="font-size: 2rem; font-weight: bold; color: #fbbf24;">{{ tasks.pending }}</p>
         </div>
     </div>
+</div>
+
+<div class="card">
+    <h2>Active Runs <span class="badge">{{ active_runs|length }}</span></h2>
+    {% if active_runs %}
+    <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.5rem;">Run ID</th>
+                <th style="text-align: left; padding: 0.5rem;">Repo</th>
+                <th style="text-align: left; padding: 0.5rem;">Progress</th>
+                <th style="text-align: left; padding: 0.5rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in active_runs %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.5rem;">{{ run.run_id }}</td>
+                <td style="padding: 0.5rem;">{{ run.repo }}</td>
+                <td style="padding: 0.5rem;">{{ run.tasks.done }}/{{ run.tasks.total }}</td>
+                <td style="padding: 0.5rem;"><a href="/command-center/{{ run.run_id }}/logs">View Logs</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #888; margin-top: 1rem;">No active runs</p>
+    {% endif %}
 </div>
 
 <div class="card">
