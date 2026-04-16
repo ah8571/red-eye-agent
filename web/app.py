@@ -178,8 +178,11 @@ async def checklist_page(
     if AGENT_CHECKLIST_PATH.exists():
         with open(AGENT_CHECKLIST_PATH, 'r') as f:
             checklist_raw = f.read()
-        checklist = yaml.safe_load(checklist_raw)
-        tasks = checklist.get('tasks', [])
+        try:
+            checklist = yaml.safe_load(checklist_raw)
+            tasks = checklist.get('tasks', [])
+        except yaml.YAMLError:
+            tasks = []
     else:
         checklist_raw = ""
     
