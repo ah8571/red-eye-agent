@@ -17,8 +17,24 @@
             </select>
         </div>
         <div style="margin-bottom: 1rem;">
-            <label for="taskTextarea" style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
-            <textarea id="taskTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: inherit;"></textarea>
+            <label style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
+            <div class="tab-buttons" style="display: flex; margin-bottom: 0.5rem;">
+                <button type="button" class="tab-button active" data-tab="quick" style="flex: 1; background-color: #e94560; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Quick</button>
+                <button type="button" class="tab-button" data-tab="markdown" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Markdown</button>
+                <button type="button" class="tab-button" data-tab="yaml" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">YAML</button>
+            </div>
+            <div class="tab-panel" id="quick-panel" style="display: block;">
+                <textarea id="quickTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+            </div>
+            <div class="tab-panel" id="markdown-panel" style="display: none;">
+                <textarea id="markdownTextarea" rows="5" placeholder="## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Lines starting with - are tasks. Indent with context: for file hints.</div>
+            </div>
+            <div class="tab-panel" id="yaml-panel" style="display: none;">
+                <textarea id="yamlTextarea" rows="5" placeholder="Paste full checklist YAML here" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Must have a tasks: key with a list of task objects.</div>
+            </div>
+            <input type="hidden" id="activeFormat" name="format" value="quick">
         </div>
         <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
     </form>
@@ -60,12 +76,37 @@
 </div>
 
 <script>
+    // Tab switching
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const tab = button.dataset.tab;
+            // Update active button styles
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.style.backgroundColor = '#0f3460';
+            });
+            button.style.backgroundColor = '#e94560';
+            // Show corresponding panel
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            document.getElementById(`${tab}-panel`).style.display = 'block';
+            // Update hidden format field
+            document.getElementById('activeFormat').value = tab;
+        });
+    });
+    
     document.getElementById('launchForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const repo = document.getElementById('repoSelect').value;
-        const tasks = document.getElementById('taskTextarea').value
-            .split('\n')
-            .filter(line => line.trim());
+        const format = document.getElementById('activeFormat').value;
+        let inputText = '';
+        if (format === 'quick') {
+            inputText = document.getElementById('quickTextarea').value;
+        } else if (format === 'markdown') {
+            inputText = document.getElementById('markdownTextarea').value;
+        } else if (format === 'yaml') {
+            inputText = document.getElementById('yamlTextarea').value;
+        }
         
         try {
             const response = await fetch('/api/runs/start', {
@@ -73,7 +114,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ repo, tasks })
+                body: JSON.stringify({ repo, format, input_text: inputText })
             });
             
             if (response.ok) {
