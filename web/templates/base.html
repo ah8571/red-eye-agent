@@ -100,7 +100,7 @@
                 <a href="/">Dashboard</a>
                 <a href="/checklist">Checklist</a>
                 <a href="/runs">Runs</a>
-                {% if current_user.is_authenticated %}
+                {% if user_email is defined and user_email %}
                 <a href="/logout">Logout</a>
                 {% endif %}
             </div>
