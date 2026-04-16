@@ -8,6 +8,7 @@ import os
 import tempfile
 from datetime import datetime
 from pydantic import BaseModel
+from collections import deque
 
 from web.auth import (
     init_users_db,
@@ -422,3 +423,32 @@ async def get_run_status(
         return JSONResponse(content=status)
     except KeyError:
         raise HTTPException(status_code=404, detail="Run not found")
+
+
+@app.get("/api/runs/{run_id}/logs")
+async def get_run_logs(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Return last 200 lines of the run's output log."""
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+        log_file_path = Path(status["log_file"])
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    lines = []
+    if log_file_path.exists() and log_file_path.is_file():
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                # Use deque to efficiently keep last 200 lines
+                last_lines = deque(maxlen=200)
+                for line in f:
+                    last_lines.append(line.rstrip('\n'))
+                lines = list(last_lines)
+        except Exception:
+            # If any error reading file, return empty lines
+            lines = []
+    
+    return JSONResponse(content={"run_id": run_id, "lines": lines})
