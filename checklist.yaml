@@ -1,150 +1,197 @@
 # ─────────────────────────────────────────────────────────────
-# Task Checklist — Run 4: Safety, Web Checklist Editor, PR Flow
+# Task Checklist — Run 5: Multi-Agent Command Center
 # ─────────────────────────────────────────────────────────────
 # Status values: pending | in_progress | done | failed | timeout | budget_exceeded
 
 tasks:
-  # ── Safety: Protected Files ───────────────────────────────
+  # ── Foundation: Process Manager ───────────────────────────
 
   - id: 1
     repo: "red-eye-agent"
     description: >
-      Add a protected files feature to task_executor.py. Define a
-      list PROTECTED_FILES at module level containing:
-      ["agent_runner.py", "task_executor.py", "git_manager.py",
-      "llm_client.py", "logger_setup.py", ".env", ".gitignore"].
-      In _apply_changes(), before processing any change with action
-      "delete", check if the file path matches any entry in
-      PROTECTED_FILES. If it does, log a warning
-      "Blocked delete of protected file: {file}" and skip it.
-      For "edit" actions, allow edits but log an info message
-      "Editing protected file: {file}" so it shows in the run log.
-      Do NOT block edits, only block deletes of protected files.
+      Create a new file process_manager.py at the project root.
+      Define a class RunManager with these methods:
+
+      __init__(self, runs_dir="runs"): Sets self.runs_dir to a Path,
+      creates it if missing, loads registry from runs_dir/registry.json
+      (or empty dict if not found).
+
+      start_run(self, run_id, repo_name, checklist_path, config_path="config.yaml") -> dict:
+      Creates a subdirectory runs/{run_id}/. Copies the checklist file
+      into that directory as checklist.yaml. Spawns agent_runner.py
+      as a subprocess: subprocess.Popen([sys.executable, "agent_runner.py",
+      "--config", config_path, "--checklist", str(runs/{run_id}/checklist.yaml)],
+      stdout=open(runs/{run_id}/output.log, "w"),
+      stderr=subprocess.STDOUT). Stores in registry: {run_id: {pid, repo,
+      started_at (ISO string), status: "running", log_file, checklist_file}}.
+      Saves registry. Returns the entry.
+
+      get_status(self, run_id) -> dict: Reads the run's checklist.yaml
+      to get task statuses (counts of pending/in_progress/done/failed).
+      Checks if PID is still alive (os.kill(pid, 0) wrapped in try/except).
+      If process is dead and was "running", updates status to "finished".
+      Returns {run_id, pid, repo, started_at, status, tasks: {total, done, failed, pending}}.
+
+      stop_run(self, run_id) -> bool: Sends SIGTERM (os.kill(pid, signal.SIGTERM))
+      to the process. Updates status to "stopped". Returns True on success.
+
+      list_runs(self) -> list[dict]: Returns get_status() for each run in registry,
+      sorted by started_at descending.
+
+      _save_registry(self): Writes self.registry to runs/registry.json.
+      _load_registry(self): Reads runs/registry.json into self.registry.
+
+      Import: subprocess, sys, os, signal, json, shutil, yaml, datetime, pathlib, logging.
+      Use logging.getLogger("agent.process_manager").
     status: pending
     context_files:
-      - "task_executor.py"
+      - "agent_runner.py"
 
-  # ── Safety: Secrets Scanner ───────────────────────────────
+  # ── Web API: Start Run ────────────────────────────────────
 
   - id: 2
     repo: "red-eye-agent"
     description: >
-      Add a secrets scanner to task_executor.py. Create a function
-      _scan_for_secrets(content: str) -> list[str] that checks file
-      content for secrets using these regex patterns: AWS access keys
-      (AKIA[0-9A-Z]{16}), GitHub tokens (gh[ps]_[A-Za-z0-9]{36,}
-      or github_pat_[A-Za-z0-9_]{20,}), generic API keys
-      ((?i)(api[_-]?key|secret[_-]?key|password)\s*[=:]\s*["'][^"']{8,}["']).
-      In _apply_changes(), after writing any file (create or edit),
-      read back the content and run _scan_for_secrets(). If any
-      matches are found, log a warning "Potential secret detected in
-      {file}: {pattern_name}" but still allow the commit. Return the
-      list of warnings. Keep it simple — just regex, no external deps.
+      Add a new POST route /api/runs/start to web/app.py. It requires
+      authentication (use the get_current_user dependency). Accepts
+      JSON body with fields: repo (string, required), tasks (list of
+      strings, each is a task description). The route should:
+      1) Generate a run_id as "{repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}".
+      2) Build a checklist dict: {"tasks": [{"id": i+1, "repo": repo,
+         "description": desc, "status": "pending", "context_files": []}
+         for i, desc in enumerate(tasks)]}.
+      3) Write it to a temp file using yaml.dump.
+      4) Import RunManager from process_manager. Create a RunManager instance.
+      Call start_run(run_id, repo, temp_checklist_path).
+      5) Return JSON: {"run_id": run_id, "status": "started"}.
+      Add "from pydantic import BaseModel" and create a StartRunRequest
+      model with fields repo: str and tasks: list[str].
+      Add proper error handling: if repo not in config repos list, return 400.
     status: pending
     context_files:
-      - "task_executor.py"
+      - "web/app.py"
+      - "process_manager.py"
 
-  # ── Web: Checklist Editor ─────────────────────────────────
+  # ── Web API: Stop Run ─────────────────────────────────────
 
   - id: 3
     repo: "red-eye-agent"
     description: >
-      Add a POST /checklist/save route to web/app.py that accepts
-      a form field "tasks_yaml" (raw YAML text) and writes it to
-      the checklist.yaml file. Validate that the YAML parses
-      correctly and has a "tasks" key that is a list before saving.
-      If validation fails, redirect back to /checklist with an
-      error query parameter. If it succeeds, save the file and
-      redirect to /checklist. Require authentication via the
-      get_current_user dependency.
+      Add a POST route /api/runs/{run_id}/stop to web/app.py.
+      Requires authentication. Creates a RunManager instance, calls
+      stop_run(run_id). Returns JSON {"run_id": run_id, "status": "stopped"}
+      on success, or 404 with {"error": "Run not found"} if the
+      run_id is not in the registry.
     status: pending
     context_files:
       - "web/app.py"
-      - "checklist.yaml"
+      - "process_manager.py"
+
+  # ── Web API: Run Status ───────────────────────────────────
 
   - id: 4
     repo: "red-eye-agent"
     description: >
-      Update web/templates/checklist.html to add a "Edit Checklist"
-      section below the task table. Add a textarea (id="tasks_yaml",
-      name="tasks_yaml") that is pre-filled with the current
-      checklist.yaml content. Below it add a "Save Checklist" submit
-      button that POSTs to /checklist/save. Style the textarea with
-      dark background (#16213e), monospace font, full width, min
-      height 300px, white text. If the URL has an "error" query
-      param, show a red alert div above the textarea saying
-      "Invalid YAML — please check your syntax." Wrap it all in
-      a form tag. Keep existing task table above unchanged.
+      Add two GET routes to web/app.py:
+      1) GET /api/runs — returns JSON list of all runs from
+         RunManager().list_runs(). Requires authentication.
+      2) GET /api/runs/{run_id}/status — returns JSON from
+         RunManager().get_status(run_id). Requires authentication.
+         Returns 404 if run_id not found.
     status: pending
     context_files:
-      - "web/templates/checklist.html"
       - "web/app.py"
+      - "process_manager.py"
 
-  # ── Web: Read checklist content for editor ────────────────
+  # ── Web API: Log Tail ─────────────────────────────────────
 
   - id: 5
     repo: "red-eye-agent"
     description: >
-      Update the GET /checklist route in web/app.py to also pass
-      the raw checklist YAML content to the template. Read the
-      checklist.yaml file as a string and pass it as
-      "checklist_raw" in the template context, alongside the
-      existing "tasks" list. Also pass any "error" query parameter
-      from the request as "error" in the context. Import the
-      Request query_params for this.
+      Add a GET route /api/runs/{run_id}/logs to web/app.py.
+      Requires authentication. Reads the last 200 lines of the run's
+      output.log file (path from RunManager().get_status(run_id)["log_file"]).
+      Returns JSON {"run_id": run_id, "lines": [...last 200 lines...]}.
+      Use a deque(maxlen=200) to efficiently read last lines.
+      If log file not found, return {"run_id": run_id, "lines": []}.
+      Import collections.deque for this.
     status: pending
     context_files:
       - "web/app.py"
+      - "process_manager.py"
 
-  # ── Auto PR Creation ──────────────────────────────────────
+  # ── Web UI: Command Center Page ───────────────────────────
 
   - id: 6
     repo: "red-eye-agent"
     description: >
-      Add a function create_pull_request(repo_name, branch_name,
-      title, body) to git_manager.py. Use the urllib.request module
-      (no external deps) to call the GitHub API:
-      POST https://api.github.com/repos/{owner}/{repo}/pulls
-      with JSON body {"title": title, "body": body, "head":
-      branch_name, "base": "main"}. Use the GITHUB_PAT from
-      environment for Bearer auth. Return the PR URL on success
-      or None on failure. Log the result. Import os to read
-      the PAT from os.environ.
+      Create a new template web/templates/command_center.html extending
+      base.html. This page has two sections:
+
+      Section 1 — "Launch New Run": A form with a <select> dropdown
+      for repo (populated from a template variable "repos"), a <textarea>
+      for task descriptions (placeholder: "Enter one task per line"),
+      and a Submit button. The form uses JavaScript fetch() to POST
+      to /api/runs/start with JSON body {repo: selected_repo,
+      tasks: textarea.value.split('\n').filter(line => line.trim())}.
+      On success, show an alert with the run_id and reload the page.
+      On error, show the error message.
+
+      Section 2 — "Active Runs": A table with columns: Run ID, Repo,
+      Started, Status, Progress, Actions. Use a template variable
+      "active_runs" (list of dicts with those fields). Progress shows
+      "done/total tasks". Actions column has a "Stop" button (red, calls
+      fetch POST /api/runs/{run_id}/stop then reloads) and a "Logs"
+      link to /command-center/{run_id}/logs.
+
+      Use the same dark card styling as dashboard.html. Add the page
+      title as "Command Center".
     status: pending
     context_files:
-      - "git_manager.py"
+      - "web/templates/dashboard.html"
+      - "web/templates/base.html"
+
+  # ── Web UI: Command Center Route ──────────────────────────
 
   - id: 7
     repo: "red-eye-agent"
     description: >
-      Update agent_runner.py to call create_pull_request() at the
-      end of each repo's task processing, after all tasks are done.
-      Import create_pull_request from git_manager. Build a PR title
-      like "Red-Eye Agent Run {date}" and a body that lists each
-      completed and failed task with its ID and description (first
-      60 chars). Only create the PR if at least one task was
-      committed. Store the PR URL in the results dict under
-      "pr_url". Log the PR URL.
+      Add a GET route /command-center to web/app.py. Requires authentication.
+      It loads the repos list from config.yaml (same as the dashboard route does),
+      creates a RunManager(), calls list_runs() to get active runs, and renders
+      command_center.html passing repos and active_runs.
+      Also add a GET route /command-center/{run_id}/logs that renders a new
+      simple template showing the run's log output. Create
+      web/templates/run_logs.html extending base.html with a <pre> block
+      for the log content and a JavaScript setInterval that fetches
+      /api/runs/{run_id}/logs every 5 seconds and updates the <pre>
+      content. Add a "Back to Command Center" link.
+      Finally, add a "Command Center" link to the nav bar in base.html,
+      right after the Dashboard link, pointing to /command-center.
     status: pending
     context_files:
-      - "agent_runner.py"
-      - "git_manager.py"
+      - "web/app.py"
+      - "web/templates/base.html"
+      - "web/templates/dashboard.html"
 
-  # ── Post-run Diff Summary ─────────────────────────────────
+  # ── Integration: Update Dashboard ─────────────────────────
 
   - id: 8
     repo: "red-eye-agent"
     description: >
-      Add a function generate_diff_summary(git_manager, branch_name,
-      log_dir) to report.py. It should run
-      "git diff main..{branch_name} --stat" to get a summary of
-      changed files and lines. Write this to a file
-      "logs/diff_summary_YYYY-MM-DD.md" with a heading and the
-      stat output in a code block. Call it from agent_runner.py
-      right after generate_report(), passing the git manager
-      instance for the repo.
+      Update the dashboard route (GET /) in web/app.py to also show
+      active agent runs. Import RunManager from process_manager. In
+      the dashboard handler, create a RunManager(), call list_runs(),
+      filter to only runs with status "running", and pass as
+      "active_runs" to the template. In dashboard.html, add a new
+      card section before the existing repos card titled "Active Runs"
+      with a count badge. If active_runs is not empty, show a small
+      table with Run ID, Repo, Progress (done/total), and a link
+      to /command-center/{run_id}/logs. If empty, show
+      "No active runs" in muted text. Add a prominent "Launch New Run"
+      button (green, links to /command-center) above the Active Runs section.
     status: pending
     context_files:
-      - "report.py"
-      - "agent_runner.py"
-      - "git_manager.py"
+      - "web/app.py"
+      - "web/templates/dashboard.html"
+      - "process_manager.py"
