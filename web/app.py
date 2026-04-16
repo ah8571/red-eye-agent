@@ -26,13 +26,15 @@ from web.config import (
     AGENT_LOG_DIR
 )
 from process_manager import RunManager
+from checklist_parser import parse_markdown, parse_yaml_text
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
 
 
 class StartRunRequest(BaseModel):
     repo: str
-    tasks: list[str]
+    input_text: str
+    format: str = "quick"
 
 templates = Jinja2Templates(directory="web/templates")
 
@@ -401,22 +403,36 @@ async def start_run(
     if request.repo not in repos:
         raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
     
+    # Validate format
+    if request.format not in ("quick", "markdown", "yaml"):
+        raise HTTPException(status_code=400, detail="Invalid format")
+    
+    # Build checklist dict based on format
+    try:
+        if request.format == "quick":
+            # Split input_text by newlines, filter empty lines
+            lines = [line.strip() for line in request.input_text.splitlines() if line.strip()]
+            checklist = {
+                "tasks": [
+                    {
+                        "id": i + 1,
+                        "repo": request.repo,
+                        "description": desc,
+                        "status": "pending",
+                        "context_files": []
+                    }
+                    for i, desc in enumerate(lines)
+                ]
+            }
+        elif request.format == "markdown":
+            checklist = parse_markdown(request.input_text, request.repo)
+        else:  # yaml
+            checklist = parse_yaml_text(request.input_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     # Generate run_id
     run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    
-    # Build checklist dict
-    checklist = {
-        "tasks": [
-            {
-                "id": i + 1,
-                "repo": request.repo,
-                "description": desc,
-                "status": "pending",
-                "context_files": []
-            }
-            for i, desc in enumerate(request.tasks)
-        ]
-    }
     
     # Write to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
