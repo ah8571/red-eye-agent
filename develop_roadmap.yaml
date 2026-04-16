@@ -1,0 +1,208 @@
+##############################################################################
+# Red-Eye Agent — Development Roadmap
+# Organized by phase. Items within a phase are independent unless noted.
+##############################################################################
+
+current_version: "0.3"   # Runs 1-3 complete, basic web dashboard live
+
+# ─── PHASE 1: Stabilize & Harden (next) ────────────────────────────────────
+
+phase_1:
+  title: "Stabilize & Harden"
+  items:
+
+    - id: 1.1
+      title: "Protected files list"
+      description: >
+        Add a configurable list of core files that the agent cannot delete
+        or fully overwrite (e.g. agent_runner.py, task_executor.py,
+        git_manager.py, llm_client.py, .env). Enforce in _apply_changes().
+      priority: high
+      status: planned
+
+    - id: 1.2
+      title: "Auto-create GitHub PR after run"
+      description: >
+        After pushing the branch, use the GitHub API to create a pull request
+        with a summary of changes (files touched, tasks completed/failed).
+        Replaces manual merge step.
+      priority: high
+      status: planned
+
+    - id: 1.3
+      title: "Secrets scanner"
+      description: >
+        Before committing, scan diffs for API keys, tokens, passwords,
+        and other secrets using regex patterns (AWS keys, GitHub tokens,
+        generic high-entropy strings). Block commit if detected.
+      priority: high
+      status: planned
+
+    - id: 1.4
+      title: "Dependency audit"
+      description: >
+        When requirements.txt or package.json is modified, run pip-audit
+        (or npm audit) against the new dependencies. Flag known-vulnerable
+        or typosquatted packages before committing.
+      priority: medium
+      status: planned
+
+    - id: 1.5
+      title: "Post-run diff summary"
+      description: >
+        Auto-generate a human-readable Markdown summary of all file changes
+        per run. Include lines added/removed per file, new files created,
+        files deleted. Save alongside the run report.
+      priority: medium
+      status: planned
+
+# ─── PHASE 2: Web Dashboard Enhancements ───────────────────────────────────
+
+phase_2:
+  title: "Web Dashboard Enhancements"
+  items:
+
+    - id: 2.1
+      title: "In-browser code review"
+      description: >
+        Add a /review page that shows the diff between main and the agent's
+        branch, with syntax highlighting and file-by-file navigation.
+        Users can approve/reject changes from the web UI without needing
+        GitHub or an IDE.
+      priority: high
+      status: planned
+
+    - id: 2.2
+      title: "Checklist editor"
+      description: >
+        Allow users to create and edit checklists from the web dashboard
+        instead of manually editing YAML. Add task, set priority, assign
+        to a repo, reorder.
+      priority: high
+      status: planned
+
+    - id: 2.3
+      title: "Run trigger from web"
+      description: >
+        Add a "Start Run" button on the dashboard that kicks off the agent
+        runner in the background. Show real-time progress (task status
+        updating as tasks complete).
+      priority: medium
+      status: planned
+
+    - id: 2.4
+      title: "Multi-repo management"
+      description: >
+        Dashboard page for managing repos — add/remove repos, set per-repo
+        config (branch prefix, test command), view per-repo run history.
+      priority: medium
+      status: planned
+
+    - id: 2.5
+      title: "Email notifications"
+      description: >
+        Send email summary to ALLOWED_EMAILS when a run completes.
+        Include pass/fail counts, cost, and link to the run detail page.
+      priority: low
+      status: planned
+
+# ─── PHASE 3: Security & Trust ─────────────────────────────────────────────
+
+phase_3:
+  title: "Security & Trust"
+  items:
+
+    - id: 3.1
+      title: "Supply chain verification"
+      description: >
+        Check new dependencies against known-malicious package databases.
+        Detect typosquatting (e.g. reqeusts vs requests). Integrate with
+        PyPI/npm advisory feeds.
+      priority: high
+      status: planned
+
+    - id: 3.2
+      title: "Sandboxed execution"
+      description: >
+        Run the agent's code changes inside a Docker container or nsjail
+        sandbox. Prevents the LLM from generating code that modifies the
+        host system, exfiltrates data, or installs backdoors.
+      priority: high
+      status: planned
+
+    - id: 3.3
+      title: "Action allowlists per task"
+      description: >
+        Let checklist tasks specify which files/directories the agent is
+        allowed to touch. Changes outside the allowlist are blocked.
+        Example: "only modify files in web/templates/".
+      priority: medium
+      status: planned
+
+    - id: 3.4
+      title: "Audit log"
+      description: >
+        Maintain an append-only log of every action the agent takes:
+        files read, files written, commands executed, LLM prompts/responses.
+        Useful for forensics if something goes wrong.
+      priority: medium
+      status: planned
+
+    - id: 3.5
+      title: "LLM output validation"
+      description: >
+        Beyond JSON parsing, validate that the LLM's response doesn't
+        contain suspicious patterns: shell injection in file content,
+        encoded payloads, attempts to modify .env or credentials files.
+      priority: medium
+      status: planned
+
+# ─── PHASE 4: Scale & Productize ───────────────────────────────────────────
+
+phase_4:
+  title: "Scale & Productize"
+  items:
+
+    - id: 4.1
+      title: "Multi-user support"
+      description: >
+        Multiple users with separate repos, checklists, and run histories.
+        Role-based access (admin, viewer). Each user brings their own
+        GitHub PAT and LLM API key.
+      priority: high
+      status: planned
+
+    - id: 4.2
+      title: "Scheduled runs (cron)"
+      description: >
+        Set up systemd timers or a scheduler so runs kick off automatically
+        at a configured time (e.g. nightly at 2 AM). Users configure
+        schedule per checklist from the dashboard.
+      priority: medium
+      status: planned
+
+    - id: 4.3
+      title: "WhatsApp / Twilio integration"
+      description: >
+        Send run summaries and allow checklist management via WhatsApp.
+        User can text tasks and get status updates.
+      priority: low
+      status: planned
+
+    - id: 4.4
+      title: "LLM provider switching"
+      description: >
+        Allow per-task or per-run LLM provider selection from the dashboard.
+        Compare cost/quality across providers. Fall back to cheaper models
+        for simple tasks.
+      priority: low
+      status: planned
+
+    - id: 4.5
+      title: "HTTPS and domain"
+      description: >
+        Set up a domain name, Nginx reverse proxy, and Let's Encrypt TLS
+        certificate for the web dashboard. Required before opening to
+        external users.
+      priority: high
+      status: planned

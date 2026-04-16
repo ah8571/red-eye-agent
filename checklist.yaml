@@ -1,148 +1,150 @@
 # ─────────────────────────────────────────────────────────────
-# Task Checklist — self-improvement tasks for Red-Eye Agent
+# Task Checklist — Run 4: Safety, Web Checklist Editor, PR Flow
 # ─────────────────────────────────────────────────────────────
 # Status values: pending | in_progress | done | failed | timeout | budget_exceeded
-#
-# These tasks are for the agent to improve its own codebase.
-# Start simple, build up to more complex features.
 
 tasks:
-  # ── Reliability & Error Handling ──────────────────────────
+  # ── Safety: Protected Files ───────────────────────────────
 
   - id: 1
     repo: "red-eye-agent"
     description: >
-      Add retry logic with exponential backoff to the LLM API calls
-      in llm_client.py. When an API call fails with a transient error
-      (connection error, rate limit 429, server error 5xx), retry up
-      to 3 times with exponential backoff (2s, 4s, 8s). Log each
-      retry attempt. Do NOT retry on auth errors (401/403) or budget
-      exceeded. Add a max_retries field to the config under each
-      model provider section, defaulting to 3. Update config.yaml
-      to include the new field.
+      Add a protected files feature to task_executor.py. Define a
+      list PROTECTED_FILES at module level containing:
+      ["agent_runner.py", "task_executor.py", "git_manager.py",
+      "llm_client.py", "logger_setup.py", ".env", ".gitignore"].
+      In _apply_changes(), before processing any change with action
+      "delete", check if the file path matches any entry in
+      PROTECTED_FILES. If it does, log a warning
+      "Blocked delete of protected file: {file}" and skip it.
+      For "edit" actions, allow edits but log an info message
+      "Editing protected file: {file}" so it shows in the run log.
+      Do NOT block edits, only block deletes of protected files.
     status: pending
     context_files:
-      - "llm_client.py"
-      - "config.yaml"
+      - "task_executor.py"
+
+  # ── Safety: Secrets Scanner ───────────────────────────────
 
   - id: 2
     repo: "red-eye-agent"
     description: >
-      Add retry logic to _parse_response() in task_executor.py.
-      If the LLM returns text that is not valid JSON, send one
-      follow-up message saying "Your previous response was not
-      valid JSON. Please respond with valid JSON only following
-      the exact schema." Include the original task context.
-      Only retry once — if the second response is also invalid,
-      raise the error as before. Log the retry attempt.
+      Add a secrets scanner to task_executor.py. Create a function
+      _scan_for_secrets(content: str) -> list[str] that checks file
+      content for secrets using these regex patterns: AWS access keys
+      (AKIA[0-9A-Z]{16}), GitHub tokens (gh[ps]_[A-Za-z0-9]{36,}
+      or github_pat_[A-Za-z0-9_]{20,}), generic API keys
+      ((?i)(api[_-]?key|secret[_-]?key|password)\s*[=:]\s*["'][^"']{8,}["']).
+      In _apply_changes(), after writing any file (create or edit),
+      read back the content and run _scan_for_secrets(). If any
+      matches are found, log a warning "Potential secret detected in
+      {file}: {pattern_name}" but still allow the commit. Return the
+      list of warnings. Keep it simple — just regex, no external deps.
     status: pending
     context_files:
       - "task_executor.py"
-      - "llm_client.py"
+
+  # ── Web: Checklist Editor ─────────────────────────────────
 
   - id: 3
     repo: "red-eye-agent"
     description: >
-      Add input validation for checklist.yaml at startup in
-      agent_runner.py. Create a new function validate_checklist()
-      that checks: (a) the file has a "tasks" key that is a list,
-      (b) each task has required fields: id (int), repo (str),
-      description (str), status (str), (c) all task IDs are unique,
-      (d) status values are one of the allowed values. If validation
-      fails, log a clear error and exit with code 1. Call this
-      function right after load_checklist() in the run() function.
+      Add a POST /checklist/save route to web/app.py that accepts
+      a form field "tasks_yaml" (raw YAML text) and writes it to
+      the checklist.yaml file. Validate that the YAML parses
+      correctly and has a "tasks" key that is a list before saving.
+      If validation fails, redirect back to /checklist with an
+      error query parameter. If it succeeds, save the file and
+      redirect to /checklist. Require authentication via the
+      get_current_user dependency.
     status: pending
     context_files:
-      - "agent_runner.py"
+      - "web/app.py"
       - "checklist.yaml"
 
   - id: 4
     repo: "red-eye-agent"
     description: >
-      Add config validation in agent_runner.py. Create a function
-      validate_config() that checks: (a) default_provider is one
-      of "openai", "anthropic", "deepseek", (b) the models section
-      has a config entry for the default_provider, (c) budget has
-      max_cost_per_run as a positive number, (d) repos is a non-empty
-      list where each entry has "name" and "url" keys. Log clear
-      errors and exit with code 1 on failure. Call it right after
-      load_config() in run().
+      Update web/templates/checklist.html to add a "Edit Checklist"
+      section below the task table. Add a textarea (id="tasks_yaml",
+      name="tasks_yaml") that is pre-filled with the current
+      checklist.yaml content. Below it add a "Save Checklist" submit
+      button that POSTs to /checklist/save. Style the textarea with
+      dark background (#16213e), monospace font, full width, min
+      height 300px, white text. If the URL has an "error" query
+      param, show a red alert div above the textarea saying
+      "Invalid YAML — please check your syntax." Wrap it all in
+      a form tag. Keep existing task table above unchanged.
     status: pending
     context_files:
-      - "agent_runner.py"
-      - "config.yaml"
+      - "web/templates/checklist.html"
+      - "web/app.py"
 
-  # ── Security Fix ──────────────────────────────────────────
+  # ── Web: Read checklist content for editor ────────────────
 
   - id: 5
     repo: "red-eye-agent"
     description: >
-      Fix the path traversal vulnerability in the _apply_changes()
-      method of task_executor.py. Currently, when the action is
-      "delete", the code directly builds a path and deletes it
-      without the path traversal check that read_file() and
-      write_file() already have. Add the same check: resolve the
-      full_path and verify it is relative to self.git.workspace_dir
-      using is_relative_to(). If not, log a warning and skip the
-      delete. Also add the check for "edit" and "create" actions
-      before calling self.git.write_file() as a defense-in-depth
-      measure.
+      Update the GET /checklist route in web/app.py to also pass
+      the raw checklist YAML content to the template. Read the
+      checklist.yaml file as a string and pass it as
+      "checklist_raw" in the template context, alongside the
+      existing "tasks" list. Also pass any "error" query parameter
+      from the request as "error" in the context. Import the
+      Request query_params for this.
     status: pending
     context_files:
-      - "task_executor.py"
-      - "git_manager.py"
+      - "web/app.py"
 
-  # ── Reporting ─────────────────────────────────────────────
+  # ── Auto PR Creation ──────────────────────────────────────
 
   - id: 6
     repo: "red-eye-agent"
     description: >
-      Create a run report generator. Add a new file report.py with
-      a function generate_report(results, llm_usage, log_dir) that
-      writes a Markdown file "logs/run_report_YYYY-MM-DD.md" with:
-      (a) a summary table of all tasks (id, status, elapsed time),
-      (b) total token usage and cost from llm_usage.summary(),
-      (c) for each failed task, the error message and last 20 lines
-      of test output if available. Call generate_report() from
-      agent_runner.py at the end of the run() function, right after
-      saving results.json.
+      Add a function create_pull_request(repo_name, branch_name,
+      title, body) to git_manager.py. Use the urllib.request module
+      (no external deps) to call the GitHub API:
+      POST https://api.github.com/repos/{owner}/{repo}/pulls
+      with JSON body {"title": title, "body": body, "head":
+      branch_name, "base": "main"}. Use the GITHUB_PAT from
+      environment for Bearer auth. Return the PR URL on success
+      or None on failure. Log the result. Import os to read
+      the PAT from os.environ.
     status: pending
     context_files:
-      - "agent_runner.py"
-      - "llm_client.py"
-
-  # ── CLI & Usability ──────────────────────────────────────
+      - "git_manager.py"
 
   - id: 7
     repo: "red-eye-agent"
     description: >
-      Add a --status flag to agent_runner.py that prints the current
-      checklist status and exits without running any tasks. It should
-      show a table with columns: ID, Repo, Status, and a truncated
-      description (first 60 chars). At the bottom, show counts of
-      pending/done/failed/etc tasks. Use simple string formatting,
-      no external dependencies. Add it as a mutually exclusive
-      option with --dry-run.
+      Update agent_runner.py to call create_pull_request() at the
+      end of each repo's task processing, after all tasks are done.
+      Import create_pull_request from git_manager. Build a PR title
+      like "Red-Eye Agent Run {date}" and a body that lists each
+      completed and failed task with its ID and description (first
+      60 chars). Only create the PR if at least one task was
+      committed. Store the PR URL in the results dict under
+      "pr_url". Log the PR URL.
     status: pending
     context_files:
       - "agent_runner.py"
+      - "git_manager.py"
+
+  # ── Post-run Diff Summary ─────────────────────────────────
 
   - id: 8
     repo: "red-eye-agent"
     description: >
-      Create a README.md for the project. Include: (a) a one-line
-      description "Red-Eye Agent — autonomous overnight coding agent powered by
-      DeepSeek/OpenAI/Anthropic", (b) a Features section listing
-      serial task execution, multi-repo support, budget tracking,
-      auto-retry on test failure, and per-task logging, (c) a
-      Quick Start section with steps: clone, create .env from
-      .env.example, edit config.yaml with repo URLs, edit
-      checklist.yaml with tasks, run with "python agent_runner.py",
-      (d) a Configuration section briefly describing config.yaml
-      and checklist.yaml, (e) a CLI flags section listing --dry-run,
-      --task, --repo, --config, --checklist. Keep it concise.
+      Add a function generate_diff_summary(git_manager, branch_name,
+      log_dir) to report.py. It should run
+      "git diff main..{branch_name} --stat" to get a summary of
+      changed files and lines. Write this to a file
+      "logs/diff_summary_YYYY-MM-DD.md" with a heading and the
+      stat output in a code block. Call it from agent_runner.py
+      right after generate_report(), passing the git manager
+      instance for the repo.
     status: pending
     context_files:
+      - "report.py"
       - "agent_runner.py"
-      - "config.yaml"
-      - ".env.example"
+      - "git_manager.py"
