@@ -174,10 +174,14 @@ async def checklist_page(
 ):
     """Display checklist tasks in a table."""
     tasks = []
+    checklist_raw = ""
     if AGENT_CHECKLIST_PATH.exists():
         with open(AGENT_CHECKLIST_PATH, 'r') as f:
-            checklist = yaml.safe_load(f)
-            tasks = checklist.get('tasks', [])
+            checklist_raw = f.read()
+        checklist = yaml.safe_load(checklist_raw)
+        tasks = checklist.get('tasks', [])
+    else:
+        checklist_raw = ""
     
     # Process tasks for display
     for task in tasks:
@@ -197,12 +201,15 @@ async def checklist_page(
         else:
             task['status_color'] = 'warning'
     
+    error = request.query_params.get("error", "")
     return templates.TemplateResponse(
         request,
         "checklist.html",
         {
             "user_email": user_email,
-            "tasks": tasks
+            "tasks": tasks,
+            "checklist_raw": checklist_raw,
+            "error": error
         }
     )
 
@@ -273,3 +280,29 @@ async def run_detail(
             "content": content
         }
     )
+
+
+@app.post("/checklist/save")
+async def checklist_save(
+    request: Request,
+    tasks_yaml: str = Form(...),
+    user_email: str = Depends(get_current_user)
+):
+    """Save checklist YAML after validation."""
+    try:
+        parsed = yaml.safe_load(tasks_yaml)
+        if not isinstance(parsed, dict) or not isinstance(parsed.get("tasks"), list):
+            raise ValueError("YAML must have a 'tasks' key that is a list")
+    except Exception as e:
+        # Redirect with error query parameter
+        return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
+    
+    # Write to file
+    try:
+        with open(AGENT_CHECKLIST_PATH, 'w') as f:
+            f.write(tasks_yaml)
+    except Exception as e:
+        # If file write fails, also redirect with error
+        return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
+    
+    return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
