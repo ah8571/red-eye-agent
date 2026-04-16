@@ -218,12 +218,16 @@ async def runs_list(
     
     log_files = []
     for file_path in AGENT_LOG_DIR.iterdir():
-        if file_path.is_file():
-            stat = file_path.stat()
+        if file_path.is_file() and file_path.name.startswith('run_'):
+            name = file_path.name
+            # Parse timestamp from filename like run_20260415_234820.log
+            ts = name.replace('run_', '').replace('.log', '')
+            display = ts[:8] + ' ' + ts[9:] if len(ts) > 8 else ts
             log_files.append({
-                'name': file_path.name,
-                'size': stat.st_size,
-                'modified': stat.st_mtime
+                'filename': name,
+                'display_name': name,
+                'timestamp': display,
+                'modified': file_path.stat().st_mtime
             })
     
     # Sort by modified time descending (newest first)
