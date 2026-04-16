@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import yaml
 from pathlib import Path
 import os
+import tempfile
+from datetime import datetime
+from pydantic import BaseModel
 
 from web.auth import (
     init_users_db,
@@ -21,8 +24,14 @@ from web.config import (
     AGENT_CHECKLIST_PATH,
     AGENT_LOG_DIR
 )
+from process_manager import RunManager
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
+
+
+class StartRunRequest(BaseModel):
+    repo: str
+    tasks: list[str]
 
 templates = Jinja2Templates(directory="web/templates")
 
@@ -309,3 +318,61 @@ async def checklist_save(
         return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
     
     return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/api/runs/start")
+async def start_run(
+    request: StartRunRequest,
+    user_email: str = Depends(get_current_user)
+):
+    """Start a new run with given repo and tasks."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Validate repo
+    if request.repo not in repos:
+        raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
+    
+    # Generate run_id
+    run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    
+    # Build checklist dict
+    checklist = {
+        "tasks": [
+            {
+                "id": i + 1,
+                "repo": request.repo,
+                "description": desc,
+                "status": "pending",
+                "context_files": []
+            }
+            for i, desc in enumerate(request.tasks)
+        ]
+    }
+    
+    # Write to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+        yaml.dump(checklist, tmp)
+        temp_checklist_path = tmp.name
+    
+    try:
+        # Start run via RunManager
+        manager = RunManager()
+        manager.start_run(run_id, request.repo, temp_checklist_path)
+    except Exception as e:
+        # Clean up temp file on error
+        os.unlink(temp_checklist_path)
+        raise HTTPException(status_code=500, detail=f"Failed to start run: {e}")
+    
+    # Temp file will be cleaned up by the subprocess or after copy
+    # We could schedule cleanup but RunManager copies it.
+    
+    return JSONResponse(
+        status_code=200,
+        content={"run_id": run_id, "status": "started"}
+    )
