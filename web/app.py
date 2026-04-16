@@ -61,7 +61,7 @@ async def startup_event():
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Render login form."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -86,8 +86,9 @@ async def login_submit(
         return response
     else:
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": "Invalid email or password"},
+            {"error": "Invalid email or password"},
             status_code=status.HTTP_401_UNAUTHORIZED
         )
 
@@ -95,7 +96,7 @@ async def login_submit(
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Render registration form."""
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse(request, "register.html")
 
 
 @app.post("/register")
@@ -149,9 +150,9 @@ async def dashboard(
                     task_counts[status] = 1
     
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "user_email": user_email,
             "repos": repos,
             "task_counts": task_counts
@@ -190,9 +191,9 @@ async def checklist_page(
             task['status_color'] = 'warning'
     
     return templates.TemplateResponse(
+        request,
         "checklist.html",
         {
-            "request": request,
             "user_email": user_email,
             "tasks": tasks
         }
@@ -222,9 +223,9 @@ async def runs_list(
     log_files.sort(key=lambda x: x['modified'], reverse=True)
     
     return templates.TemplateResponse(
+        request,
         "runs.html",
         {
-            "request": request,
             "user_email": user_email,
             "log_files": log_files
         }
@@ -253,9 +254,9 @@ async def run_detail(
         content = "Unable to read log file"
     
     return templates.TemplateResponse(
+        request,
         "run_detail.html",
         {
-            "request": request,
             "user_email": user_email,
             "filename": filename,
             "content": content
