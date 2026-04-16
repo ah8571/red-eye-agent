@@ -1,5 +1,5 @@
-import pytest
 import yaml
+import unittest
 from checklist_parser import parse_markdown, parse_yaml_text, validate_checklist_dict
 
 
@@ -96,7 +96,7 @@ def test_parse_markdown_validation_fails_on_duplicate_ids():
     assert "Duplicate task id 1" in errors
 
 
-def test_parse_yaml_text_valid():
+    def test_parse_yaml_text_valid(self):
     yaml_text = """
 tasks:
   - id: 1

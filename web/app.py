@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException
+from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -450,6 +450,73 @@ async def start_run(
     
     # Temp file will be cleaned up by the subprocess or after copy
     # We could schedule cleanup but RunManager copies it.
+    
+    return JSONResponse(
+        status_code=200,
+        content={"run_id": run_id, "status": "started"}
+    )
+
+
+@app.post("/api/runs/upload")
+async def upload_run(
+    repo: str = Form(...),
+    file: UploadFile = File(...),
+    user_email: str = Depends(get_current_user)
+):
+    """Start a new run from an uploaded file."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Validate repo
+    if repo not in repos:
+        raise HTTPException(status_code=400, detail=f"Repo '{repo}' not in configured repos")
+    
+    # Detect format by file extension
+    filename = file.filename.lower()
+    if filename.endswith('.md'):
+        format = "markdown"
+    elif filename.endswith('.yaml') or filename.endswith('.yml'):
+        format = "yaml"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    
+    # Read file content as text
+    try:
+        content = await file.read()
+        input_text = content.decode('utf-8')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+    
+    # Build checklist dict based on format
+    try:
+        if format == "markdown":
+            checklist = parse_markdown(input_text, repo)
+        else:  # yaml
+            checklist = parse_yaml_text(input_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Generate run_id
+    run_id = f"{repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    
+    # Write to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+        yaml.dump(checklist, tmp)
+        temp_checklist_path = tmp.name
+    
+    try:
+        # Start run via RunManager
+        manager = RunManager()
+        manager.start_run(run_id, repo, temp_checklist_path)
+    except Exception as e:
+        # Clean up temp file on error
+        os.unlink(temp_checklist_path)
+        raise HTTPException(status_code=500, detail=f"Failed to start run: {e}")
     
     return JSONResponse(
         status_code=200,

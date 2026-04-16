@@ -41,6 +41,24 @@
 </div>
 
 <div class="card">
+    <h2>Upload & Run</h2>
+    <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
+        <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
+        <div style="margin-bottom: 1rem;">
+            <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
+            <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
+                {% for repo in repos %}
+                <option value="{{ repo.name }}">{{ repo.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
+        <div id="fileName" style="margin-bottom: 1rem; color: #aaa;">No file selected</div>
+        <button id="uploadButton" onclick="uploadFile()" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Upload & Run</button>
+    </div>
+</div>
+
+<div class="card">
     <h2>Active Runs</h2>
     <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
         <thead>
@@ -140,6 +158,52 @@
             
             if (response.ok) {
                 alert('Run stopped');
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        } catch (err) {
+            alert(`Network error: ${err.message}`);
+        }
+    }
+    
+    // File upload handling
+    const fileInput = document.getElementById('fileUpload');
+    const fileNameDisplay = document.getElementById('fileName');
+    const uploadButton = document.getElementById('uploadButton');
+    
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            fileNameDisplay.textContent = fileInput.files[0].name;
+            uploadButton.disabled = false;
+        } else {
+            fileNameDisplay.textContent = 'No file selected';
+            uploadButton.disabled = true;
+        }
+    });
+    
+    async function uploadFile() {
+        const repo = document.getElementById('uploadRepoSelect').value;
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Please select a file');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('repo', repo);
+        formData.append('file', file);
+        
+        try {
+            const response = await fetch('/api/runs/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                alert(`Run started with ID: ${data.run_id}`);
                 location.reload();
             } else {
                 const error = await response.text();
