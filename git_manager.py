@@ -10,6 +10,8 @@ import os
 import re
 import logging
 import subprocess
+import urllib.request
+import json
 from pathlib import Path
 
 logger = logging.getLogger("agent.git")
@@ -194,3 +196,52 @@ class GitManager:
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
         logger.info(f"[{self.name}] Wrote {relative_path}")
+
+    def create_pull_request(self, repo_name: str, branch_name: str, title: str, body: str) -> str | None:
+        """
+        Create a pull request on GitHub via API.
+        
+        Args:
+            repo_name: The repository name (owner/repo).
+            branch_name: The branch to merge (head).
+            title: PR title.
+            body: PR description.
+        
+        Returns:
+            URL of the created PR on success, None on failure.
+        """
+        pat = os.environ.get("GITHUB_PAT")
+        if not pat:
+            logger.error(f"[{self.name}] GITHUB_PAT not set in environment")
+            return None
+        
+        # repo_name should be in format "owner/repo"
+        api_url = f"https://api.github.com/repos/{repo_name}/pulls"
+        data = {
+            "title": title,
+            "body": body,
+            "head": branch_name,
+            "base": "main"
+        }
+        json_data = json.dumps(data).encode("utf-8")
+        
+        headers = {
+            "Authorization": f"Bearer {pat}",
+            "Accept": "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
+            "User-Agent": "Autonomous-Agent"
+        }
+        
+        try:
+            req = urllib.request.Request(api_url, data=json_data, headers=headers, method="POST")
+            with urllib.request.urlopen(req) as response:
+                response_data = json.load(response)
+                pr_url = response_data.get("html_url")
+                logger.info(f"[{self.name}] Created PR: {pr_url}")
+                return pr_url
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            logger.error(f"[{self.name}] GitHub API error {e.code}: {error_body}")
+        except Exception as e:
+            logger.error(f"[{self.name}] Failed to create PR: {e}")
+        return None
