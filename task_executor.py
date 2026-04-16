@@ -21,6 +21,16 @@ from llm_client import LLMClient, BudgetExceededError
 
 logger = logging.getLogger("agent.executor")
 
+PROTECTED_FILES = [
+    "agent_runner.py",
+    "task_executor.py",
+    "git_manager.py",
+    "llm_client.py",
+    "logger_setup.py",
+    ".env",
+    ".gitignore"
+]
+
 SYSTEM_PROMPT = """You are an autonomous coding agent working on a repository.
 You will receive a task description and context about the codebase (file tree, relevant files).
 
@@ -278,6 +288,14 @@ class TaskExecutor:
             except Exception as e:
                 logger.warning(f"Path resolution failed for {file_path}: {e}")
                 continue
+
+            # Check if file is protected
+            is_protected = file_path in PROTECTED_FILES
+            if is_protected and action == "delete":
+                logger.warning(f"Blocked delete of protected file: {file_path}")
+                continue
+            if is_protected and action == "edit":
+                logger.info(f"Editing protected file: {file_path}")
 
             if action == "create":
                 content = change.get("content", "")
