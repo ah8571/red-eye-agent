@@ -376,3 +376,25 @@ async def start_run(
         status_code=200,
         content={"run_id": run_id, "status": "started"}
     )
+
+
+@app.post("/api/runs/{run_id}/stop")
+async def stop_run(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Stop a running process."""
+    try:
+        manager = RunManager()
+        success = manager.stop_run(run_id)
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={"run_id": run_id, "status": "stopped"}
+            )
+        else:
+            # stop_run returns False on failure (e.g., permission error)
+            # but still raises KeyError if run not found, caught below.
+            raise HTTPException(status_code=500, detail="Failed to stop run")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
