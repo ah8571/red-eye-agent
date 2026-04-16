@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Command Center — Red-Eye Agent{% endblock %}
+
+{% block content %}
+<h1>Command Center</h1>
+
+<div class="card">
+    <h2>Launch New Run</h2>
+    <form id="launchForm">
+        <div style="margin-bottom: 1rem;">
+            <label for="repoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
+            <select id="repoSelect" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
+                {% for repo in repos %}
+                <option value="{{ repo.name }}">{{ repo.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <label for="taskTextarea" style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
+            <textarea id="taskTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: inherit;"></textarea>
+        </div>
+        <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Active Runs</h2>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Run ID</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Repo</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Started</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Status</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Progress</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in active_runs %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.75rem 0.5rem;">{{ run.run_id }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.repo }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.started }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.status }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.progress }}</td>
+                <td style="padding: 0.75rem 0.5rem;">
+                    <button onclick="stopRun('{{ run.run_id }}')" style="background-color: #dc2626; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Stop</button>
+                    <a href="/command-center/{{ run.run_id }}/logs" style="color: #60a5fa; text-decoration: none;">Logs</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="padding: 1rem; text-align: center; color: #888;">No active runs</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.getElementById('launchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const repo = document.getElementById('repoSelect').value;
+        const tasks = document.getElementById('taskTextarea').value
+            .split('\n')
+            .filter(line => line.trim());
+        
+        try {
+            const response = await fetch('/api/runs/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ repo, tasks })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                alert(`Run started with ID: ${data.run_id}`);
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        } catch (err) {
+            alert(`Network error: ${err.message}`);
+        }
+    });
+    
+    async function stopRun(runId) {
+        if (!confirm('Are you sure you want to stop this run?')) return;
+        
+        try {
+            const response = await fetch(`/api/runs/${runId}/stop`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                alert('Run stopped');
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        } catch (err) {
+            alert(`Network error: ${err.message}`);
+        }
+    }
+</script>
+{% endblock %}

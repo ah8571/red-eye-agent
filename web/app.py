@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import yaml
 from pathlib import Path
 import os
+import tempfile
+from datetime import datetime
+from pydantic import BaseModel
+from collections import deque
 
 from web.auth import (
     init_users_db,
@@ -21,8 +25,14 @@ from web.config import (
     AGENT_CHECKLIST_PATH,
     AGENT_LOG_DIR
 )
+from process_manager import RunManager
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
+
+
+class StartRunRequest(BaseModel):
+    repo: str
+    tasks: list[str]
 
 templates = Jinja2Templates(directory="web/templates")
 
@@ -155,6 +165,11 @@ async def dashboard(
             if f.is_file():
                 recent_runs.append({"filename": f.name, "date": f.name.replace("run_", "").replace(".log", "")})
     
+    # Active runs from RunManager
+    manager = RunManager()
+    all_runs = manager.list_runs()
+    active_runs = [run for run in all_runs if run.get("status") == "running"]
+    
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -162,7 +177,8 @@ async def dashboard(
             "user_email": user_email,
             "repos": repos,
             "tasks": task_counts,
-            "recent_runs": recent_runs
+            "recent_runs": recent_runs,
+            "active_runs": active_runs
         }
     )
 
@@ -285,6 +301,62 @@ async def run_detail(
     )
 
 
+@app.get("/command-center", response_class=HTMLResponse)
+async def command_center(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Command center page showing repos and active runs."""
+    # Load repos from config.yaml
+    repos = []
+    if AGENT_CONFIG_PATH.exists():
+        with open(AGENT_CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+            repos = config.get('repos', [])
+    
+    # Get active runs via RunManager
+    manager = RunManager()
+    active_runs = manager.list_runs()
+    
+    return templates.TemplateResponse(
+        request,
+        "command_center.html",
+        {
+            "user_email": user_email,
+            "repos": repos,
+            "active_runs": active_runs
+        }
+    )
+
+
+@app.get("/command-center/{run_id}/logs", response_class=HTMLResponse)
+async def run_logs_page(
+    request: Request,
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Page showing live logs for a specific run."""
+    # Validate run_id to prevent path traversal
+    if '..' in run_id or '/' in run_id or '\\' in run_id:
+        raise HTTPException(status_code=400, detail="Invalid run ID")
+    
+    # Verify run exists via RunManager
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    return templates.TemplateResponse(
+        request,
+        "run_logs.html",
+        {
+            "user_email": user_email,
+            "run_id": run_id
+        }
+    )
+
+
 @app.post("/checklist/save")
 async def checklist_save(
     request: Request,
@@ -309,3 +381,136 @@ async def checklist_save(
         return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
     
     return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/api/runs/start")
+async def start_run(
+    request: StartRunRequest,
+    user_email: str = Depends(get_current_user)
+):
+    """Start a new run with given repo and tasks."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Validate repo
+    if request.repo not in repos:
+        raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
+    
+    # Generate run_id
+    run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    
+    # Build checklist dict
+    checklist = {
+        "tasks": [
+            {
+                "id": i + 1,
+                "repo": request.repo,
+                "description": desc,
+                "status": "pending",
+                "context_files": []
+            }
+            for i, desc in enumerate(request.tasks)
+        ]
+    }
+    
+    # Write to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+        yaml.dump(checklist, tmp)
+        temp_checklist_path = tmp.name
+    
+    try:
+        # Start run via RunManager
+        manager = RunManager()
+        manager.start_run(run_id, request.repo, temp_checklist_path)
+    except Exception as e:
+        # Clean up temp file on error
+        os.unlink(temp_checklist_path)
+        raise HTTPException(status_code=500, detail=f"Failed to start run: {e}")
+    
+    # Temp file will be cleaned up by the subprocess or after copy
+    # We could schedule cleanup but RunManager copies it.
+    
+    return JSONResponse(
+        status_code=200,
+        content={"run_id": run_id, "status": "started"}
+    )
+
+
+@app.post("/api/runs/{run_id}/stop")
+async def stop_run(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Stop a running process."""
+    try:
+        manager = RunManager()
+        success = manager.stop_run(run_id)
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={"run_id": run_id, "status": "stopped"}
+            )
+        else:
+            # stop_run returns False on failure (e.g., permission error)
+            # but still raises KeyError if run not found, caught below.
+            raise HTTPException(status_code=500, detail="Failed to stop run")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+
+@app.get("/api/runs")
+async def get_runs(
+    user_email: str = Depends(get_current_user)
+):
+    """Return JSON list of all runs."""
+    manager = RunManager()
+    runs = manager.list_runs()
+    return JSONResponse(content=runs)
+
+
+@app.get("/api/runs/{run_id}/status")
+async def get_run_status(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Return JSON status of a specific run."""
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+        return JSONResponse(content=status)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+
+@app.get("/api/runs/{run_id}/logs")
+async def get_run_logs(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Return last 200 lines of the run's output log."""
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+        log_file_path = Path(status["log_file"])
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    lines = []
+    if log_file_path.exists() and log_file_path.is_file():
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                # Use deque to efficiently keep last 200 lines
+                last_lines = deque(maxlen=200)
+                for line in f:
+                    last_lines.append(line.rstrip('\n'))
+                lines = list(last_lines)
+        except Exception:
+            # If any error reading file, return empty lines
+            lines = []
+    
+    return JSONResponse(content={"run_id": run_id, "lines": lines})
