@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 # Secret key for session security
 SECRET_KEY = os.getenv('WEB_SECRET_KEY', os.urandom(32).hex())
