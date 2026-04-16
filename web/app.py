@@ -135,19 +135,25 @@ async def dashboard(
             repos = config.get('repos', [])
     
     # Load task counts from checklist.yaml
-    task_counts = {"pending": 0, "completed": 0, "failed": 0}
+    task_counts = {"pending": 0, "done": 0, "failed": 0, "total": 0}
     if AGENT_CHECKLIST_PATH.exists():
         with open(AGENT_CHECKLIST_PATH, 'r') as f:
             checklist = yaml.safe_load(f)
-            tasks = checklist.get('tasks', [])
-            for task in tasks:
-                status = task.get('status', 'pending').lower()
-                if status == 'done':
-                    task_counts['completed'] += 1
-                elif status in task_counts:
-                    task_counts[status] += 1
-                else:
-                    task_counts[status] = 1
+            task_list = checklist.get('tasks', [])
+            task_counts["total"] = len(task_list)
+            for task in task_list:
+                s = task.get('status', 'pending').lower()
+                if s == 'done':
+                    task_counts['done'] += 1
+                elif s in task_counts:
+                    task_counts[s] += 1
+
+    # Recent runs from log directory
+    recent_runs = []
+    if AGENT_LOG_DIR.exists():
+        for f in sorted(AGENT_LOG_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
+            if f.is_file():
+                recent_runs.append({"filename": f.name, "date": f.name.replace("run_", "").replace(".log", "")})
     
     return templates.TemplateResponse(
         request,
@@ -155,7 +161,8 @@ async def dashboard(
         {
             "user_email": user_email,
             "repos": repos,
-            "task_counts": task_counts
+            "tasks": task_counts,
+            "recent_runs": recent_runs
         }
     )
 
