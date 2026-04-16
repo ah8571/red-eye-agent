@@ -1,197 +1,235 @@
 # ─────────────────────────────────────────────────────────────
-# Task Checklist — Run 5: Multi-Agent Command Center
+# Task Checklist — Run 6: Multi-Format Checklist Import
 # ─────────────────────────────────────────────────────────────
 # Status values: pending | in_progress | done | failed | timeout | budget_exceeded
 
 tasks:
-  # ── Foundation: Process Manager ───────────────────────────
+  # ── Markdown Parser ───────────────────────────────────────
 
   - id: 1
     repo: "red-eye-agent"
     description: >
-      Create a new file process_manager.py at the project root.
-      Define a class RunManager with these methods:
-
-      __init__(self, runs_dir="runs"): Sets self.runs_dir to a Path,
-      creates it if missing, loads registry from runs_dir/registry.json
-      (or empty dict if not found).
-
-      start_run(self, run_id, repo_name, checklist_path, config_path="config.yaml") -> dict:
-      Creates a subdirectory runs/{run_id}/. Copies the checklist file
-      into that directory as checklist.yaml. Spawns agent_runner.py
-      as a subprocess: subprocess.Popen([sys.executable, "agent_runner.py",
-      "--config", config_path, "--checklist", str(runs/{run_id}/checklist.yaml)],
-      stdout=open(runs/{run_id}/output.log, "w"),
-      stderr=subprocess.STDOUT). Stores in registry: {run_id: {pid, repo,
-      started_at (ISO string), status: "running", log_file, checklist_file}}.
-      Saves registry. Returns the entry.
-
-      get_status(self, run_id) -> dict: Reads the run's checklist.yaml
-      to get task statuses (counts of pending/in_progress/done/failed).
-      Checks if PID is still alive (os.kill(pid, 0) wrapped in try/except).
-      If process is dead and was "running", updates status to "finished".
-      Returns {run_id, pid, repo, started_at, status, tasks: {total, done, failed, pending}}.
-
-      stop_run(self, run_id) -> bool: Sends SIGTERM (os.kill(pid, signal.SIGTERM))
-      to the process. Updates status to "stopped". Returns True on success.
-
-      list_runs(self) -> list[dict]: Returns get_status() for each run in registry,
-      sorted by started_at descending.
-
-      _save_registry(self): Writes self.registry to runs/registry.json.
-      _load_registry(self): Reads runs/registry.json into self.registry.
-
-      Import: subprocess, sys, os, signal, json, shutil, yaml, datetime, pathlib, logging.
-      Use logging.getLogger("agent.process_manager").
+      Create a new file checklist_parser.py at the project root.
+      Define a function parse_markdown(text: str, repo: str) -> dict
+      that converts markdown text into a checklist dict. The markdown
+      format is: lines starting with "- " are task descriptions.
+      Indented lines starting with "  - context:" followed by a
+      comma-separated list of filenames are context_files for the
+      preceding task. Lines starting with "## " or "# " are section
+      headers and should be ignored. Blank lines are ignored.
+      Multi-line task descriptions are supported: if a line does not
+      start with "- " or "  - context:" and is not a heading or blank,
+      it is appended to the previous task's description.
+      Return format: {"tasks": [{"id": 1, "repo": repo,
+      "description": "...", "status": "pending",
+      "context_files": ["file1.py", "file2.py"]}]}.
+      Also define parse_yaml_text(text: str) -> dict that takes raw
+      YAML text, parses it with yaml.safe_load, validates it has a
+      "tasks" key that is a list where each item has "id", "repo",
+      "description", and "status" keys. Returns the parsed dict.
+      Raises ValueError with a descriptive message on any validation
+      failure. Import yaml, re, logging. Add unit tests: create
+      tests/test_checklist_parser.py with tests for parse_markdown
+      (valid input with context files, input without context files,
+      empty input returns empty tasks list) and parse_yaml_text
+      (valid yaml, invalid yaml raises ValueError, missing tasks key
+      raises ValueError).
     status: pending
     context_files:
-      - "agent_runner.py"
+      - "checklist.yaml"
 
-  # ── Web API: Start Run ────────────────────────────────────
+  # ── Update API to accept format param ─────────────────────
 
   - id: 2
     repo: "red-eye-agent"
     description: >
-      Add a new POST route /api/runs/start to web/app.py. It requires
-      authentication (use the get_current_user dependency). Accepts
-      JSON body with fields: repo (string, required), tasks (list of
-      strings, each is a task description). The route should:
-      1) Generate a run_id as "{repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}".
-      2) Build a checklist dict: {"tasks": [{"id": i+1, "repo": repo,
-         "description": desc, "status": "pending", "context_files": []}
-         for i, desc in enumerate(tasks)]}.
-      3) Write it to a temp file using yaml.dump.
-      4) Import RunManager from process_manager. Create a RunManager instance.
-      Call start_run(run_id, repo, temp_checklist_path).
-      5) Return JSON: {"run_id": run_id, "status": "started"}.
-      Add "from pydantic import BaseModel" and create a StartRunRequest
-      model with fields repo: str and tasks: list[str].
-      Add proper error handling: if repo not in config repos list, return 400.
+      Update the POST /api/runs/start route in web/app.py. Change
+      the StartRunRequest Pydantic model to have these fields:
+      repo (str), input_text (str), format (str, default "quick").
+      Format can be "quick", "markdown", or "yaml".
+      In the route handler:
+      - If format == "quick": split input_text by newlines, filter
+        empty lines, build tasks list as before (each line is a task
+        description, no context_files).
+      - If format == "markdown": import parse_markdown from
+        checklist_parser and call parse_markdown(input_text, repo).
+        Use the returned dict directly as the checklist.
+      - If format == "yaml": import parse_yaml_text from
+        checklist_parser and call parse_yaml_text(input_text). Use
+        the returned dict directly as the checklist.
+      - If format is not one of the three, return 400 with
+        "Invalid format" error.
+      Remove the old "tasks" field from StartRunRequest. The rest
+      of the route (generating run_id, writing temp file, calling
+      RunManager) stays the same. Add proper error handling: if
+      parse_markdown or parse_yaml_text raises ValueError, return
+      400 with the error message.
     status: pending
     context_files:
       - "web/app.py"
-      - "process_manager.py"
+      - "checklist_parser.py"
 
-  # ── Web API: Stop Run ─────────────────────────────────────
+  # ── Tabbed UI for Command Center ──────────────────────────
 
   - id: 3
     repo: "red-eye-agent"
     description: >
-      Add a POST route /api/runs/{run_id}/stop to web/app.py.
-      Requires authentication. Creates a RunManager instance, calls
-      stop_run(run_id). Returns JSON {"run_id": run_id, "status": "stopped"}
-      on success, or 404 with {"error": "Run not found"} if the
-      run_id is not in the registry.
+      Update web/templates/command_center.html to replace the single
+      textarea with a tabbed interface. Add three tab buttons above
+      the input area: "Quick", "Markdown", "YAML". Style them as
+      horizontal buttons with the active tab having background
+      #e94560 and inactive tabs having background #0f3460. Use
+      JavaScript to show/hide the corresponding input panel when
+      a tab is clicked.
+      Quick tab: shows a textarea with placeholder "Enter one task
+      per line" (the existing behavior).
+      Markdown tab: shows a textarea with placeholder text showing
+      the format example:
+      "## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py"
+      and a small help text div below saying "Lines starting with -
+      are tasks. Indent with context: for file hints."
+      YAML tab: shows a textarea with placeholder "Paste full
+      checklist YAML here" and help text "Must have a tasks: key
+      with a list of task objects."
+      All textareas should have the same styling: dark background
+      (#16213e), monospace font, white text, full width, min-height
+      300px, border-radius 4px.
+      Update the JavaScript submit handler to read a hidden input
+      or determine which tab is active, and send the correct
+      "format" value ("quick", "markdown", or "yaml") along with
+      "input_text" (the active textarea value) and "repo" in the
+      POST body to /api/runs/start.
+      Keep the Active Runs table section unchanged below the form.
     status: pending
     context_files:
-      - "web/app.py"
-      - "process_manager.py"
+      - "web/templates/command_center.html"
 
-  # ── Web API: Run Status ───────────────────────────────────
+  # ── File Upload Support ───────────────────────────────────
 
   - id: 4
     repo: "red-eye-agent"
     description: >
-      Add two GET routes to web/app.py:
-      1) GET /api/runs — returns JSON list of all runs from
-         RunManager().list_runs(). Requires authentication.
-      2) GET /api/runs/{run_id}/status — returns JSON from
-         RunManager().get_status(run_id). Requires authentication.
-         Returns 404 if run_id not found.
+      Add file upload support to the command center. Add a new
+      POST route /api/runs/upload in web/app.py that accepts a
+      multipart form with fields: repo (str), file (UploadFile).
+      Import UploadFile and File from fastapi. Read the uploaded
+      file content as text. Detect format by file extension:
+      .md -> "markdown", .yaml or .yml -> "yaml", anything else
+      -> return 400 "Unsupported file type". Use the same
+      parse_markdown or parse_yaml_text from checklist_parser
+      to parse the content. Then proceed the same as /api/runs/start:
+      generate run_id, write temp checklist, call RunManager.
+      Return JSON {"run_id": run_id, "status": "started"}.
+      Requires authentication via get_current_user.
+      In command_center.html, add a file upload area below the
+      tabs section. Add a div with a dashed border (#0f3460),
+      containing a file input (accept=".md,.yaml,.yml") and
+      a small "Upload & Run" button. When the file is selected
+      and button clicked, use JavaScript FormData to POST to
+      /api/runs/upload. On success, alert the run_id and reload.
+      Style the upload area to match the dark theme.
     status: pending
     context_files:
       - "web/app.py"
-      - "process_manager.py"
+      - "web/templates/command_center.html"
+      - "checklist_parser.py"
 
-  # ── Web API: Log Tail ─────────────────────────────────────
+  # ── Repo Dropdown from Config ─────────────────────────────
 
   - id: 5
     repo: "red-eye-agent"
     description: >
-      Add a GET route /api/runs/{run_id}/logs to web/app.py.
-      Requires authentication. Reads the last 200 lines of the run's
-      output.log file (path from RunManager().get_status(run_id)["log_file"]).
-      Returns JSON {"run_id": run_id, "lines": [...last 200 lines...]}.
-      Use a deque(maxlen=200) to efficiently read last lines.
-      If log file not found, return {"run_id": run_id, "lines": []}.
-      Import collections.deque for this.
+      Currently the /api/runs/start route validates that repo is in
+      the config's repos list, but it compares the repo string against
+      the full repo dict objects. Fix this: when loading repos from
+      config.yaml, extract just the repo names as a list with
+      [r["name"] for r in repos]. Use that list for validation
+      (check if request.repo is in repo_names). Also fix the repo
+      validation in the /api/runs/upload route the same way.
+      Additionally, update the /command-center route to pass just
+      repo names to the template if it currently passes full repo
+      dicts, so the <select> options render correctly.
     status: pending
     context_files:
       - "web/app.py"
-      - "process_manager.py"
+      - "config.yaml"
 
-  # ── Web UI: Command Center Page ───────────────────────────
+  # ── Markdown Format Documentation ─────────────────────────
 
   - id: 6
     repo: "red-eye-agent"
     description: >
-      Create a new template web/templates/command_center.html extending
-      base.html. This page has two sections:
-
-      Section 1 — "Launch New Run": A form with a <select> dropdown
-      for repo (populated from a template variable "repos"), a <textarea>
-      for task descriptions (placeholder: "Enter one task per line"),
-      and a Submit button. The form uses JavaScript fetch() to POST
-      to /api/runs/start with JSON body {repo: selected_repo,
-      tasks: textarea.value.split('\n').filter(line => line.trim())}.
-      On success, show an alert with the run_id and reload the page.
-      On error, show the error message.
-
-      Section 2 — "Active Runs": A table with columns: Run ID, Repo,
-      Started, Status, Progress, Actions. Use a template variable
-      "active_runs" (list of dicts with those fields). Progress shows
-      "done/total tasks". Actions column has a "Stop" button (red, calls
-      fetch POST /api/runs/{run_id}/stop then reloads) and a "Logs"
-      link to /command-center/{run_id}/logs.
-
-      Use the same dark card styling as dashboard.html. Add the page
-      title as "Command Center".
+      Add a GET route /command-center/help to web/app.py that
+      renders a new template web/templates/import_help.html.
+      This template extends base.html and shows documentation
+      for all three input formats with examples. Include:
+      1) Quick format: "One task per line. No context files."
+      with a code block example.
+      2) Markdown format: explain the format with a full example
+      showing section headers, task descriptions, multi-line
+      descriptions, and context file lines. Show a sample like:
+      ## Safety\n- Add input validation to the login form\n  - context: web/auth.py, web/templates/login.html\n## Features\n- Create a new API endpoint for user profiles\n  - context: web/app.py
+      3) YAML format: Show the full checklist.yaml structure
+      with id, repo, description, status, context_files.
+      Style all code examples with dark background (#16213e),
+      monospace, white text, padding, border-radius.
+      Add a link from command_center.html to this help page
+      (small "Format Help" link next to the tab buttons).
+      Requires authentication.
     status: pending
     context_files:
-      - "web/templates/dashboard.html"
-      - "web/templates/base.html"
+      - "web/app.py"
+      - "web/templates/command_center.html"
 
-  # ── Web UI: Command Center Route ──────────────────────────
+  # ── Preview Before Launch ─────────────────────────────────
 
   - id: 7
     repo: "red-eye-agent"
     description: >
-      Add a GET route /command-center to web/app.py. Requires authentication.
-      It loads the repos list from config.yaml (same as the dashboard route does),
-      creates a RunManager(), calls list_runs() to get active runs, and renders
-      command_center.html passing repos and active_runs.
-      Also add a GET route /command-center/{run_id}/logs that renders a new
-      simple template showing the run's log output. Create
-      web/templates/run_logs.html extending base.html with a <pre> block
-      for the log content and a JavaScript setInterval that fetches
-      /api/runs/{run_id}/logs every 5 seconds and updates the <pre>
-      content. Add a "Back to Command Center" link.
-      Finally, add a "Command Center" link to the nav bar in base.html,
-      right after the Dashboard link, pointing to /command-center.
+      Add a POST route /api/runs/preview to web/app.py that accepts
+      the same StartRunRequest body as /api/runs/start but does NOT
+      start a run. Instead it parses the input (using the same
+      format logic) and returns JSON with {"tasks": [...list of
+      task dicts with id, description, context_files...],
+      "count": number_of_tasks}. This lets the user preview what
+      will be submitted before launching.
+      In command_center.html, add a "Preview" button next to the
+      "Start Run" button. When clicked, it sends the same data to
+      /api/runs/preview instead. Display the result in a div below
+      the form: show a count ("X tasks parsed") and a list of task
+      descriptions (truncated to 100 chars each) with their context
+      files. Style as a dark card. If there's an error (400), show
+      it in red text. Add a "Confirm & Launch" button in the
+      preview div that sends the same data to /api/runs/start.
+      Requires authentication.
     status: pending
     context_files:
       - "web/app.py"
-      - "web/templates/base.html"
-      - "web/templates/dashboard.html"
+      - "web/templates/command_center.html"
 
-  # ── Integration: Update Dashboard ─────────────────────────
+  # ── Error Handling & Validation ───────────────────────────
 
   - id: 8
     repo: "red-eye-agent"
     description: >
-      Update the dashboard route (GET /) in web/app.py to also show
-      active agent runs. Import RunManager from process_manager. In
-      the dashboard handler, create a RunManager(), call list_runs(),
-      filter to only runs with status "running", and pass as
-      "active_runs" to the template. In dashboard.html, add a new
-      card section before the existing repos card titled "Active Runs"
-      with a count badge. If active_runs is not empty, show a small
-      table with Run ID, Repo, Progress (done/total), and a link
-      to /command-center/{run_id}/logs. If empty, show
-      "No active runs" in muted text. Add a prominent "Launch New Run"
-      button (green, links to /command-center) above the Active Runs section.
+      Improve error handling across the import flow. In
+      checklist_parser.py, add a function validate_checklist_dict(data: dict)
+      -> list[str] that checks: tasks key exists and is a list;
+      each task has id (int), repo (str), description (str), status (str);
+      status is one of "pending", "in_progress", "done", "failed",
+      "timeout", "budget_exceeded"; task IDs are unique; descriptions
+      are not empty. Returns list of error messages (empty = valid).
+      Call validate_checklist_dict in both parse_markdown and
+      parse_yaml_text before returning, and raise ValueError with
+      joined errors if any.
+      In web/app.py, update the /api/runs/start and /api/runs/upload
+      routes to catch ValueError from the parsers and return 400
+      with a JSON body {"error": str(e)} instead of a plain text
+      error. Update the JavaScript in command_center.html to parse
+      JSON error responses and display the error message to the user
+      in a red-styled div below the form instead of using alert().
     status: pending
     context_files:
+      - "checklist_parser.py"
       - "web/app.py"
-      - "web/templates/dashboard.html"
-      - "process_manager.py"
+      - "web/templates/command_center.html"
