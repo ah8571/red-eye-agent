@@ -476,6 +476,17 @@ def run(args):
         logger.info(f"Run report generated: {report_path}")
     except Exception as e:
         logger.error(f"Failed to generate run report: {e}")
+    
+    # Generate diff summary for repos with commits
+    if repos_with_commits and not args.dry_run:
+        for repo_name in repos_with_commits:
+            git = repos[repo_name]
+            branch_name = repo_branches[repo_name]
+            try:
+                diff_path = generate_diff_summary(git, branch_name, log_dir)
+                logger.info(f"Diff summary generated for {repo_name}: {diff_path}")
+            except Exception as e:
+                logger.error(f"Failed to generate diff summary for {repo_name}: {e}")
 
 
 def _print_summary(results: list[dict], llm: LLMClient):

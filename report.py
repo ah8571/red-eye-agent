@@ -1,4 +1,5 @@
 import datetime
+import subprocess
 from pathlib import Path
 
 def generate_report(results, usage_stats, log_dir):
@@ -74,3 +75,41 @@ def generate_report(results, usage_stats, log_dir):
         f.write(f"\n**Total tasks:** {len(results)}\n")
     
     return report_path
+
+
+def generate_diff_summary(git_manager, branch_name, log_dir):
+    """
+    Generate a diff summary between main and the given branch.
+    
+    Args:
+        git_manager: GitManager instance for the repository
+        branch_name: Name of the branch to compare against main
+        log_dir: Path object for log directory
+    """
+    # Create timestamp for filename
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d")
+    diff_path = log_dir / f"diff_summary_{timestamp}.md"
+    
+    # Run git diff --stat
+    cmd = ["git", "diff", f"main..{branch_name}", "--stat"]
+    result = subprocess.run(
+        cmd,
+        cwd=git_manager.workspace_dir,
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+    
+    with open(diff_path, "w", encoding="utf-8") as f:
+        f.write(f"# Diff Summary — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"**Repository:** {git_manager.name}\n")
+        f.write(f"**Branch:** {branch_name}\n\n")
+        f.write("## Changed Files\n\n")
+        f.write("```\n")
+        if result.returncode == 0:
+            f.write(result.stdout.strip())
+        else:
+            f.write(f"Error running git diff: {result.stderr.strip()}")
+        f.write("\n```\n")
+    
+    return diff_path
