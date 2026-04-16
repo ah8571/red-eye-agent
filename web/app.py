@@ -403,6 +403,69 @@ async def checklist_save(
     return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
 
 
+@app.post("/api/runs/preview")
+async def preview_run(
+    request: StartRunRequest,
+    user_email: str = Depends(get_current_user)
+):
+    """Preview parsed tasks without starting a run."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
+    # Validate repo
+    if request.repo not in repo_names:
+        raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
+    
+    # Validate format
+    if request.format not in ("quick", "markdown", "yaml"):
+        raise HTTPException(status_code=400, detail="Invalid format")
+    
+    # Build checklist dict based on format
+    try:
+        if request.format == "quick":
+            # Split input_text by newlines, filter empty lines
+            lines = [line.strip() for line in request.input_text.splitlines() if line.strip()]
+            checklist = {
+                "tasks": [
+                    {
+                        "id": i + 1,
+                        "repo": request.repo,
+                        "description": desc,
+                        "status": "pending",
+                        "context_files": []
+                    }
+                    for i, desc in enumerate(lines)
+                ]
+            }
+        elif request.format == "markdown":
+            checklist = parse_markdown(request.input_text, request.repo)
+        else:  # yaml
+            checklist = parse_yaml_text(request.input_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Return tasks preview
+    tasks = checklist.get("tasks", [])
+    # Ensure each task has id, description, context_files
+    for task in tasks:
+        task.setdefault("id", "")
+        task.setdefault("description", "")
+        task.setdefault("context_files", [])
+    
+    return JSONResponse(
+        status_code=200,
+        content={"tasks": tasks, "count": len(tasks)}
+    )
+
+
 @app.post("/api/runs/start")
 async def start_run(
     request: StartRunRequest,
