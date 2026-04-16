@@ -12,6 +12,7 @@ Task Executor ΓÇö runs a single task through the full lifecycle:
 
 import json
 import logging
+import re
 import signal
 import time
 from pathlib import Path
@@ -20,6 +21,16 @@ from git_manager import GitManager
 from llm_client import LLMClient, BudgetExceededError
 
 logger = logging.getLogger("agent.executor")
+
+PROTECTED_FILES = [
+    "agent_runner.py",
+    "task_executor.py",
+    "git_manager.py",
+    "llm_client.py",
+    "logger_setup.py",
+    ".env",
+    ".gitignore"
+]
 
 SYSTEM_PROMPT = """You are an autonomous coding agent working on a repository.
 You will receive a task description and context about the codebase (file tree, relevant files).
@@ -262,8 +273,30 @@ class TaskExecutor:
             logger.debug(f"Raw retry response:\n{response_text[:500]}")
             raise ValueError(f"LLM response was not valid JSON after retry: {e}")
 
+    def _scan_for_secrets(self, content: str) -> list[str]:
+        """
+        Scan content for potential secrets using regex patterns.
+        Returns list of warning messages for each match.
+        """
+        warnings = []
+        patterns = [
+            (r'AKIA[0-9A-Z]{16}', 'AWS access key'),
+            (r'gh[ps]_[A-Za-z0-9]{36,}', 'GitHub token'),
+            (r'github_pat_[A-Za-z0-9_]{20,}', 'GitHub personal access token'),
+            (r'(?i)(api[_-]?key|secret[_-]?key|password)\s*[=:]\s*["\'][^"\']{8,}["\']', 'Generic API key/password')
+        ]
+        for pattern, name in patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                # Deduplicate matches for logging
+                unique_matches = set(matches[:3])  # Show up to 3 examples
+                examples = ', '.join(unique_matches)
+                warnings.append(f"Potential {name} detected: {examples}")
+        return warnings
+
     def _apply_changes(self, changes: dict):
         """Apply file changes from the LLM response."""
+        all_warnings = []
         for change in changes.get("changes", []):
             action = change.get("action")
             file_path = change.get("file")
@@ -279,10 +312,27 @@ class TaskExecutor:
                 logger.warning(f"Path resolution failed for {file_path}: {e}")
                 continue
 
+            # Check if file is protected
+            is_protected = file_path in PROTECTED_FILES
+            if is_protected and action == "delete":
+                logger.warning(f"Blocked delete of protected file: {file_path}")
+                continue
+            if is_protected and action == "edit":
+                logger.info(f"Editing protected file: {file_path}")
+
             if action == "create":
                 content = change.get("content", "")
                 self.git.write_file(file_path, content)
                 logger.info(f"Applied {action}: {file_path}")
+                # Read back and scan for secrets
+                try:
+                    written_content = self.git.read_file(file_path)
+                    warnings = self._scan_for_secrets(written_content)
+                    for warning in warnings:
+                        logger.warning(f"Potential secret detected in {file_path}: {warning}")
+                    all_warnings.extend(warnings)
+                except Exception as e:
+                    logger.warning(f"Could not read back {file_path} for secret scan: {e}")
 
             elif action == "edit":
                 search = change.get("search")
@@ -302,10 +352,28 @@ class TaskExecutor:
                     updated = current.replace(search, replace, 1)
                     self.git.write_file(file_path, updated)
                     logger.info(f"Applied edit (search/replace): {file_path}")
+                    # Read back and scan for secrets
+                    try:
+                        written_content = self.git.read_file(file_path)
+                        warnings = self._scan_for_secrets(written_content)
+                        for warning in warnings:
+                            logger.warning(f"Potential secret detected in {file_path}: {warning}")
+                        all_warnings.extend(warnings)
+                    except Exception as e:
+                        logger.warning(f"Could not read back {file_path} for secret scan: {e}")
                 elif content is not None:
                     # Fallback: full file content mode
                     self.git.write_file(file_path, content)
                     logger.info(f"Applied edit (full content): {file_path}")
+                    # Read back and scan for secrets
+                    try:
+                        written_content = self.git.read_file(file_path)
+                        warnings = self._scan_for_secrets(written_content)
+                        for warning in warnings:
+                            logger.warning(f"Potential secret detected in {file_path}: {warning}")
+                        all_warnings.extend(warnings)
+                    except Exception as e:
+                        logger.warning(f"Could not read back {file_path} for secret scan: {e}")
                 else:
                     logger.warning(f"Edit for {file_path} missing both search/replace and content")
 
@@ -316,6 +384,8 @@ class TaskExecutor:
 
             else:
                 logger.warning(f"Unknown action '{action}' for {file_path}")
+        # Return warnings for potential logging elsewhere
+        return all_warnings
 
     def _attempt_fix(self, description: str, test_output: str, context_files: list[str]) -> bool:
         """Send test failure back to LLM for a fix attempt."""
@@ -332,7 +402,9 @@ class TaskExecutor:
             messages = [{"role": "user", "content": fix_prompt}]
             response_text = self.llm.chat(messages, system_prompt=SYSTEM_PROMPT)
             changes = self._parse_response(response_text, context)
-            self._apply_changes(changes)
+            warnings = self._apply_changes(changes)
+            if warnings:
+                logger.warning(f"Fix attempt: {len(warnings)} secret warnings")
             return True
         except Exception as e:
             logger.error(f"Fix attempt failed: {e}")

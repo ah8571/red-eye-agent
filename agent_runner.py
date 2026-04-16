@@ -349,6 +349,8 @@ def run(args):
 
     # Execute tasks serially
     results = []
+    # Track repos that have at least one committed task
+    repos_with_commits = set()
     for task in pending:
         task_id = task["id"]
         repo_name = task["repo"]
@@ -392,11 +394,65 @@ def run(args):
         save_checklist(checklist, args.checklist)
 
         results.append(result)
+        
+        # Track if task was committed
+        if result.get("committed", False):
+            repos_with_commits.add(repo_name)
 
         # Remove per-task handler
         logging.getLogger().removeHandler(task_handler)
         task_handler.close()
 
+    # Create pull requests for repos with committed tasks
+    pr_urls = {}
+    if repos_with_commits and not args.dry_run:
+        from datetime import datetime as dt
+        date_str = dt.now().strftime("%Y-%m-%d")
+        for repo_name in repos_with_commits:
+            git = repos[repo_name]
+            branch_name = repo_branches[repo_name]
+            
+            # Build PR title and body
+            title = f"Red-Eye Agent Run {date_str}"
+            body_lines = ["## Tasks processed\n"]
+            
+            # Collect tasks for this repo
+            repo_tasks = [r for r in results if r.get("repo") == repo_name]
+            for r in repo_tasks:
+                task_id = r["task_id"]
+                status = r["status"]
+                # Find description from checklist
+                desc = ""
+                for task in checklist.get("tasks", []):
+                    if task["id"] == task_id:
+                        desc = task["description"]
+                        break
+                # Truncate description to first 60 chars
+                if len(desc) > 60:
+                    desc = desc[:60] + "..."
+                body_lines.append(f"- **{status.upper()}** Task {task_id}: {desc}")
+            
+            body = "\n".join(body_lines)
+            
+            # Extract owner/repo from URL
+            # Assuming GitHub URL format: https://github.com/owner/repo.git
+            import re
+            match = re.match(r"https://github\.com/([^/]+/[^/.]+)(?:\.git)?", git.url)
+            if match:
+                repo_full_name = match.group(1)
+                pr_url = git.create_pull_request(repo_full_name, branch_name, title, body)
+                if pr_url:
+                    pr_urls[repo_name] = pr_url
+                    logger.info(f"Created PR for {repo_name}: {pr_url}")
+                    # Store PR URL in results dict for tasks of this repo
+                    for r in results:
+                        if r.get("repo") == repo_name:
+                            r["pr_url"] = pr_url
+                else:
+                    logger.error(f"Failed to create PR for {repo_name}")
+            else:
+                logger.warning(f"Could not parse GitHub URL for {repo_name}: {git.url}")
+    
     # Summary
     _print_summary(results, llm)
 
@@ -420,6 +476,17 @@ def run(args):
         logger.info(f"Run report generated: {report_path}")
     except Exception as e:
         logger.error(f"Failed to generate run report: {e}")
+    
+    # Generate diff summary for repos with commits
+    if repos_with_commits and not args.dry_run:
+        for repo_name in repos_with_commits:
+            git = repos[repo_name]
+            branch_name = repo_branches[repo_name]
+            try:
+                diff_path = generate_diff_summary(git, branch_name, log_dir)
+                logger.info(f"Diff summary generated for {repo_name}: {diff_path}")
+            except Exception as e:
+                logger.error(f"Failed to generate diff summary for {repo_name}: {e}")
 
 
 def _print_summary(results: list[dict], llm: LLMClient):
