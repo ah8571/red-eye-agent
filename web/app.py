@@ -30,20 +30,26 @@ templates = Jinja2Templates(directory="web/templates")
 # app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 
-def get_current_user(request: Request, response: Response):
-    """Dependency to get current user from session cookie.
-    If invalid, redirects to /login."""
+class NotAuthenticated(Exception):
+    pass
+
+
+def get_current_user(request: Request):
+    """Dependency to get current user from session cookie."""
     session_token = request.cookies.get("session")
     if not session_token:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    
+        raise NotAuthenticated()
     email = verify_session_token(session_token)
     if not email:
-        # Clear invalid cookie
-        response.delete_cookie("session")
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    
+        raise NotAuthenticated()
     return email
+
+
+@app.exception_handler(NotAuthenticated)
+async def not_authenticated_handler(request: Request, exc: NotAuthenticated):
+    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie("session")
+    return response
 
 
 @app.on_event("startup")
@@ -135,7 +141,9 @@ async def dashboard(
             tasks = checklist.get('tasks', [])
             for task in tasks:
                 status = task.get('status', 'pending').lower()
-                if status in task_counts:
+                if status == 'done':
+                    task_counts['completed'] += 1
+                elif status in task_counts:
                     task_counts[status] += 1
                 else:
                     task_counts[status] = 1
@@ -174,7 +182,7 @@ async def checklist_page(
         
         # Determine status color
         status = task.get('status', 'pending').lower()
-        if status == 'completed':
+        if status in ('completed', 'done'):
             task['status_color'] = 'success'
         elif status == 'failed':
             task['status_color'] = 'danger'
