@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from passlib.hash import bcrypt
+import bcrypt
 from itsdangerous import URLSafeTimedSerializer
 from itsdangerous.exc import BadSignature, SignatureExpired
 
@@ -40,7 +40,7 @@ def register_user(email: str, password: str) -> bool:
     if email in users:
         return False  # already registered
     
-    password_hash = bcrypt.hash(password)
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     users[email] = {"password_hash": password_hash}
     
     with open(db_path, 'w') as f:
@@ -68,7 +68,7 @@ def verify_user(email: str, password: str) -> bool:
     if not stored_hash:
         return False
     
-    return bcrypt.verify(password, stored_hash)
+    return bcrypt.checkpw(password.encode(), stored_hash.encode())
 
 
 def create_session_token(email: str) -> str:
