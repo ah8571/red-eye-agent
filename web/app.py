@@ -362,6 +362,21 @@ async def run_logs_page(
     )
 
 
+@app.get("/command-center/help", response_class=HTMLResponse)
+async def command_center_help(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Display help documentation for input formats."""
+    return templates.TemplateResponse(
+        request,
+        "import_help.html",
+        {
+            "user_email": user_email
+        }
+    )
+
+
 @app.post("/checklist/save")
 async def checklist_save(
     request: Request,
