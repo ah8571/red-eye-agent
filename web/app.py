@@ -398,3 +398,27 @@ async def stop_run(
             raise HTTPException(status_code=500, detail="Failed to stop run")
     except KeyError:
         raise HTTPException(status_code=404, detail="Run not found")
+
+
+@app.get("/api/runs")
+async def get_runs(
+    user_email: str = Depends(get_current_user)
+):
+    """Return JSON list of all runs."""
+    manager = RunManager()
+    runs = manager.list_runs()
+    return JSONResponse(content=runs)
+
+
+@app.get("/api/runs/{run_id}/status")
+async def get_run_status(
+    run_id: str,
+    user_email: str = Depends(get_current_user)
+):
+    """Return JSON status of a specific run."""
+    try:
+        manager = RunManager()
+        status = manager.get_status(run_id)
+        return JSONResponse(content=status)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Run not found")
