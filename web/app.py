@@ -316,6 +316,9 @@ async def command_center(
             config = yaml.safe_load(f)
             repos = config.get('repos', [])
     
+    # Extract repo names for template
+    repo_names = [r['name'] for r in repos]
+    
     # Get active runs via RunManager
     manager = RunManager()
     active_runs = manager.list_runs()
@@ -325,7 +328,7 @@ async def command_center(
         "command_center.html",
         {
             "user_email": user_email,
-            "repos": repos,
+            "repos": repo_names,
             "active_runs": active_runs
         }
     )
@@ -399,8 +402,11 @@ async def start_run(
         config = yaml.safe_load(f)
     repos = config.get('repos', [])
     
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
     # Validate repo
-    if request.repo not in repos:
+    if request.repo not in repo_names:
         raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
     
     # Validate format
@@ -472,8 +478,11 @@ async def upload_run(
         config = yaml.safe_load(f)
     repos = config.get('repos', [])
     
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
     # Validate repo
-    if repo not in repos:
+    if repo not in repo_names:
         raise HTTPException(status_code=400, detail=f"Repo '{repo}' not in configured repos")
     
     # Detect format by file extension
