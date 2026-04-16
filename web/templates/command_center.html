@@ -41,6 +41,7 @@
             <button type="button" id="previewButton" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Preview</button>
             <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
         </div>
+        <div id="formError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
     </form>
     <div id="previewResult" style="display: none; margin-top: 2rem; padding: 1.5rem; background-color: #0f3460; border-radius: 8px; border: 1px solid #16213e;">
         <h3 style="margin-top: 0; color: #eee;">Preview</h3>
@@ -139,6 +140,9 @@
             inputText = document.getElementById('yamlTextarea').value;
         }
         
+        const formError = document.getElementById('formError');
+        formError.style.display = 'none';
+        
         try {
             const response = await fetch('/api/runs/start', {
                 method: 'POST',
@@ -153,11 +157,19 @@
                 alert(`Run started with ID: ${data.run_id}`);
                 location.reload();
             } else {
-                const error = await response.text();
-                alert(`Error: ${error}`);
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    formError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    formError.textContent = `Error: ${errorText}`;
+                }
+                formError.style.display = 'block';
             }
         } catch (err) {
-            alert(`Network error: ${err.message}`);
+            formError.textContent = `Network error: ${err.message}`;
+            formError.style.display = 'block';
         }
     });
     
@@ -244,8 +256,14 @@
                     });
                 };
             } else {
-                const errorText = await response.text();
-                previewError.textContent = `Error: ${errorText}`;
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    previewError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    previewError.textContent = `Error: ${errorText}`;
+                }
                 previewError.style.display = 'block';
             }
         } catch (err) {
@@ -297,6 +315,9 @@
             return;
         }
         
+        const formError = document.getElementById('formError');
+        formError.style.display = 'none';
+        
         const formData = new FormData();
         formData.append('repo', repo);
         formData.append('file', file);
@@ -312,11 +333,19 @@
                 alert(`Run started with ID: ${data.run_id}`);
                 location.reload();
             } else {
-                const error = await response.text();
-                alert(`Error: ${error}`);
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    formError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    formError.textContent = `Error: ${errorText}`;
+                }
+                formError.style.display = 'block';
             }
         } catch (err) {
-            alert(`Network error: ${err.message}`);
+            formError.textContent = `Network error: ${err.message}`;
+            formError.style.display = 'block';
         }
     }
 </script>

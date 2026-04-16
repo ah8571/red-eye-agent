@@ -450,7 +450,7 @@ async def preview_run(
         else:  # yaml
             checklist = parse_yaml_text(request.input_text)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return JSONResponse(status_code=400, content={"error": str(e)})
     
     # Return tasks preview
     tasks = checklist.get("tasks", [])
@@ -513,7 +513,7 @@ async def start_run(
         else:  # yaml
             checklist = parse_yaml_text(request.input_text)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return JSONResponse(status_code=400, content={"error": str(e)})
     
     # Generate run_id
     run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -586,7 +586,7 @@ async def upload_run(
         else:  # yaml
             checklist = parse_yaml_text(input_text)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return JSONResponse(status_code=400, content={"error": str(e)})
     
     # Generate run_id
     run_id = f"{repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
