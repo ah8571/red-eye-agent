@@ -3,11 +3,267 @@
 {% block title %}Command Center — Red-Eye Agent{% endblock %}
 
 {% block content %}
+<style>
+    .cc-card {
+        background-color: #16213e;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        border: 1px solid #0f3460;
+        overflow: hidden;
+    }
+    .cc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+    }
+    .cc-header::-webkit-details-marker { display: none; }
+    .cc-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .cc-chevron {
+        transition: transform 0.2s ease;
+        flex-shrink: 0;
+    }
+    details[open] > .cc-header .cc-chevron {
+        transform: rotate(180deg);
+    }
+    .cc-body {
+        padding: 0 1.5rem 1.5rem 1.5rem;
+    }
+</style>
+
 <h1>Command Center</h1>
 
-<div class="card">
-    <h2>Launch New Run</h2>
+<!-- ── Launch New Run (open by default) ── -->
+<details class="cc-card" open>
+    <summary class="cc-header">
+        <h2>Launch New Run</h2>
+        <svg class="cc-chevron" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7.5L10 12.5L15 7.5" stroke="#eee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="cc-body">
     <form id="launchForm">
+        <div style="margin-bottom: 1rem;">
+            <label for="repoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
+            <select id="repoSelect" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
+                {% for repo in repos %}
+                <option value="{{ repo }}">{{ repo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
+            <div class="tab-buttons" style="display: flex; margin-bottom: 0.5rem; align-items: center;">
+                <button type="button" class="tab-button active" data-tab="quick" style="flex: 1; background-color: #e94560; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Quick</button>
+                <button type="button" class="tab-button" data-tab="markdown" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Markdown</button>
+                <button type="button" class="tab-button" data-tab="yaml" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">YAML</button>
+                <a href="/command-center/help" style="margin-left: 1rem; font-size: 0.875rem; color: #e94560; text-decoration: none; white-space: nowrap;">Format Help</a>
+            </div>
+            <div class="tab-panel" id="quick-panel" style="display: block;">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="text" id="taskInput" placeholder="Describe a task…"
+                           style="flex: 1; padding: 0.75rem; background-color: #16213e; color: #eee;
+                                  border: 1px solid #0f3460; border-radius: 4px; font-size: 1rem;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addTask();}">
+                    <button type="button" onclick="addTask()"
+                            style="background-color: #e94560; color: white; border: none;
+                                   padding: 0.75rem 1.25rem; border-radius: 4px; cursor: pointer;
+                                   font-size: 1.3rem; font-weight: bold; line-height: 1;">+</button>
+                </div>
+                <ul id="taskBuilderList" style="list-style: none; padding: 0; margin: 0 0 0.5rem 0; min-height: 4rem;"></ul>
+                <p id="taskBuilderEmpty" style="color: #eee; font-size: 0.9rem; margin: 0;">No tasks yet — type above and press + or Enter.</p>
+                <textarea id="quickTextarea" style="display: none;"></textarea>
+            </div>
+            <div class="tab-panel" id="markdown-panel" style="display: none;">
+                <textarea id="markdownTextarea" rows="5" placeholder="## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #eee;">Lines starting with - are tasks. Indent with context: for file hints.</div>
+            </div>
+            <div class="tab-panel" id="yaml-panel" style="display: none;">
+                <textarea id="yamlTextarea" rows="5" placeholder="Paste full checklist YAML here" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #eee;">Must have a tasks: key with a list of task objects.</div>
+            </div>
+            <input type="hidden" id="activeFormat" name="format" value="quick">
+        </div>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="button" id="previewButton" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Preview</button>
+            <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
+        </div>
+        <div id="formError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
+    </form>
+    <div id="previewResult" style="display: none; margin-top: 2rem; padding: 1.5rem; background-color: #0f3460; border-radius: 8px; border: 1px solid #16213e;">
+        <h3 style="margin-top: 0; color: #eee;">Preview</h3>
+        <div id="previewError" style="color: #f87171; margin-bottom: 1rem; display: none;"></div>
+        <div id="previewContent">
+            <p id="taskCount" style="color: #eee; margin-bottom: 1rem;"></p>
+            <ul id="taskList" style="list-style-type: none; padding-left: 0; margin-bottom: 1.5rem;"></ul>
+            <button id="confirmLaunch" style="background-color: #10b981; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm & Launch</button>
+        </div>
+    </div>
+    </div>
+</details>
+
+<!-- ── Connect Repositories (collapsed) ── -->
+<details class="cc-card">
+    <summary class="cc-header">
+        <h2>Connect Repositories</h2>
+        <svg class="cc-chevron" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7.5L10 12.5L15 7.5" stroke="#eee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="cc-body">
+    <p style="color: #eee; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist file here will connect it to your workspace and make it available in Launch New Run.</p>
+    <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
+        <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
+        <div style="margin-bottom: 1rem;">
+            <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
+            <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
+                {% for repo in all_repos %}
+                <option value="{{ repo }}">{{ repo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
+        <div id="fileName" style="margin-bottom: 1rem; color: #eee;">No file selected</div>
+        <button id="uploadButton" onclick="uploadFile()"
+                style="background-color: #555; color: #999; border: none; padding: 0.75rem 1.5rem;
+                       border-radius: 4px; cursor: not-allowed; font-weight: bold;"
+                disabled>Connect Repository</button>
+        <div id="uploadError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
+    </div>
+    </div>
+</details>
+
+<!-- ── Checklist (collapsed) ── -->
+<details class="cc-card">
+    <summary class="cc-header">
+        <h2>Checklist</h2>
+        <svg class="cc-chevron" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7.5L10 12.5L15 7.5" stroke="#eee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="cc-body">
+    {% if checklist_error %}
+    <div style="background-color: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ef4444;">
+        Invalid YAML — please check your syntax.
+    </div>
+    {% endif %}
+    {% if tasks %}
+    <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem; margin-bottom: 1.5rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.5rem; width: 3rem;">#</th>
+                <th style="text-align: left; padding: 0.5rem; width: 7rem;">Status</th>
+                <th style="text-align: left; padding: 0.5rem;">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.5rem;">{{ task.id }}</td>
+                <td style="padding: 0.5rem;">
+                    {% set s = task.status | default('pending') | lower %}
+                    {% if s in ('done', 'completed') %}
+                        <span style="background:#10b981;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">done</span>
+                    {% elif s == 'failed' %}
+                        <span style="background:#ef4444;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">failed</span>
+                    {% elif s == 'in_progress' %}
+                        <span style="background:#3b82f6;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">running</span>
+                    {% else %}
+                        <span style="background:#f59e0b;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">pending</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 0.5rem;">{{ task.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #eee; margin-top: 0.5rem; margin-bottom: 1.5rem;">No tasks in checklist yet.</p>
+    {% endif %}
+    <details style="margin-top: 0.5rem;">
+        <summary style="cursor: pointer; color: #e94560; font-weight: bold; padding: 0.5rem 0; user-select: none; list-style: none;">Edit Checklist YAML &#9662;</summary>
+        <form method="post" action="/checklist/save" style="margin-top: 1rem;">
+            <textarea name="tasks_yaml" style="width:100%;min-height:250px;background-color:#16213e;color:#eee;font-family:monospace;padding:0.75rem;border:1px solid #0f3460;border-radius:4px;resize:vertical;">{{ checklist_raw }}</textarea>
+            <div style="margin-top: 0.75rem;">
+                <button type="submit" style="background-color:#e94560;color:white;padding:0.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">Save Checklist</button>
+            </div>
+        </form>
+    </details>
+    </div>
+</details>
+
+<!-- ── Active Runs (collapsed) ── -->
+<details class="cc-card">
+    <summary class="cc-header">
+        <h2>Active Runs</h2>
+        <svg class="cc-chevron" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7.5L10 12.5L15 7.5" stroke="#eee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="cc-body">
+    <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Run ID</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Repo</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Started</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Status</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Progress</th>
+                <th style="text-align: left; padding: 0.75rem 0.5rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in active_runs %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.75rem 0.5rem;">{{ run.run_id }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.repo }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.started }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.status }}</td>
+                <td style="padding: 0.75rem 0.5rem;">{{ run.progress }}</td>
+                <td style="padding: 0.75rem 0.5rem;">
+                    <button onclick="stopRun('{{ run.run_id }}')" style="background-color: #dc2626; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Stop</button>
+                    <a href="/command-center/{{ run.run_id }}/logs" style="color: #eee; text-decoration: none;">Logs</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="padding: 1rem; text-align: center; color: #eee;">No active runs</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</details>
+
+<!-- ── Run History (collapsed) ── -->
+<details class="cc-card">
+    <summary class="cc-header">
+        <h2>Run History</h2>
+        <svg class="cc-chevron" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7.5L10 12.5L15 7.5" stroke="#eee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="cc-body">
+    {% if log_files %}
+    <ul style="list-style: none; padding: 0; margin-top: 0.5rem;">
+        {% for file in log_files %}
+        <li style="padding: 0.6rem 0; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center;">
+            <a href="/runs/{{ file.filename }}" style="color: #e94560;">{{ file.display_name }}</a>
+            <span style="color: #eee; font-size: 0.875rem;">{{ file.timestamp }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #eee; margin-top: 0.5rem;">No run logs yet.</p>
+    {% endif %}
+    </div>
+</details>
         <div style="margin-bottom: 1rem;">
             <label for="repoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
             <select id="repoSelect" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
@@ -64,131 +320,6 @@
             <button id="confirmLaunch" style="background-color: #10b981; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm & Launch</button>
         </div>
     </div>
-</div>
-
-<div class="card">
-    <h2>Choose Repositories to Connect</h2>
-    <p style="color: #eee; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist file here will connect it to your workspace and make it available in Launch New Run.</p>
-    <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
-        <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
-        <div style="margin-bottom: 1rem;">
-            <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
-            <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
-                {% for repo in all_repos %}
-                <option value="{{ repo }}">{{ repo }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
-        <div id="fileName" style="margin-bottom: 1rem; color: #eee;">No file selected</div>
-        <button id="uploadButton" onclick="uploadFile()"
-                style="background-color: #555; color: #999; border: none; padding: 0.75rem 1.5rem;
-                       border-radius: 4px; cursor: not-allowed; font-weight: bold;"
-                disabled>Connect Repository</button>
-        <div id="uploadError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
-    </div>
-</div>
-
-<div class="card">
-    <h2>Active Runs</h2>
-    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
-        <thead>
-            <tr style="border-bottom: 2px solid #0f3460;">
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Run ID</th>
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Repo</th>
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Started</th>
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Status</th>
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Progress</th>
-                <th style="text-align: left; padding: 0.75rem 0.5rem;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for run in active_runs %}
-            <tr style="border-bottom: 1px solid #0f3460;">
-                <td style="padding: 0.75rem 0.5rem;">{{ run.run_id }}</td>
-                <td style="padding: 0.75rem 0.5rem;">{{ run.repo }}</td>
-                <td style="padding: 0.75rem 0.5rem;">{{ run.started }}</td>
-                <td style="padding: 0.75rem 0.5rem;">{{ run.status }}</td>
-                <td style="padding: 0.75rem 0.5rem;">{{ run.progress }}</td>
-                <td style="padding: 0.75rem 0.5rem;">
-                    <button onclick="stopRun('{{ run.run_id }}')" style="background-color: #dc2626; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Stop</button>
-                    <a href="/command-center/{{ run.run_id }}/logs" style="color: #eee; text-decoration: none;">Logs</a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6" style="padding: 1rem; text-align: center; color: #eee;">No active runs</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<div class="card">
-    <h2>Run History</h2>
-    {% if log_files %}
-    <ul style="list-style: none; padding: 0; margin-top: 1rem;">
-        {% for file in log_files %}
-        <li style="padding: 0.6rem 0; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center;">
-            <a href="/runs/{{ file.filename }}" style="color: #e94560;">{{ file.display_name }}</a>
-            <span style="color: #eee; font-size: 0.875rem;">{{ file.timestamp }}</span>
-        </li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p style="color: #eee; margin-top: 1rem;">No run logs yet.</p>
-    {% endif %}
-</div>
-
-<div class="card">
-    <h2>Checklist</h2>
-    {% if checklist_error %}
-    <div style="background-color: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ef4444;">
-        Invalid YAML — please check your syntax.
-    </div>
-    {% endif %}
-    {% if tasks %}
-    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; margin-bottom: 1.5rem;">
-        <thead>
-            <tr style="border-bottom: 2px solid #0f3460;">
-                <th style="text-align: left; padding: 0.5rem; width: 3rem;">#</th>
-                <th style="text-align: left; padding: 0.5rem; width: 7rem;">Status</th>
-                <th style="text-align: left; padding: 0.5rem;">Description</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for task in tasks %}
-            <tr style="border-bottom: 1px solid #0f3460;">
-                <td style="padding: 0.5rem;">{{ task.id }}</td>
-                <td style="padding: 0.5rem;">
-                    {% set s = task.status | default('pending') | lower %}
-                    {% if s in ('done', 'completed') %}
-                        <span style="background:#10b981;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">done</span>
-                    {% elif s == 'failed' %}
-                        <span style="background:#ef4444;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">failed</span>
-                    {% elif s == 'in_progress' %}
-                        <span style="background:#3b82f6;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">running</span>
-                    {% else %}
-                        <span style="background:#f59e0b;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">pending</span>
-                    {% endif %}
-                </td>
-                <td style="padding: 0.5rem;">{{ task.description }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p style="color: #eee; margin-top: 1rem; margin-bottom: 1.5rem;">No tasks in checklist yet.</p>
-    {% endif %}
-    <details>
-        <summary style="cursor: pointer; color: #e94560; font-weight: bold; padding: 0.5rem 0; user-select: none;">Edit Checklist YAML &#9662;</summary>
-        <form method="post" action="/checklist/save" style="margin-top: 1rem;">
-            <textarea name="tasks_yaml" style="width:100%;min-height:250px;background-color:#16213e;color:#eee;font-family:monospace;padding:0.75rem;border:1px solid #0f3460;border-radius:4px;resize:vertical;">{{ checklist_raw }}</textarea>
-            <div style="margin-top: 0.75rem;">
-                <button type="submit" style="background-color:#e94560;color:white;padding:0.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">Save Checklist</button>
-            </div>
-        </form>
-    </details>
 </div>
 
 <script>
