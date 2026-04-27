@@ -25,7 +25,19 @@
                 <a href="/command-center/help" style="margin-left: 1rem; font-size: 0.875rem; color: #e94560; text-decoration: none; white-space: nowrap;">Format Help</a>
             </div>
             <div class="tab-panel" id="quick-panel" style="display: block;">
-                <textarea id="quickTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="text" id="taskInput" placeholder="Describe a task…"
+                           style="flex: 1; padding: 0.75rem; background-color: #16213e; color: #eee;
+                                  border: 1px solid #0f3460; border-radius: 4px; font-size: 1rem;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addTask();}">  
+                    <button type="button" onclick="addTask()"
+                            style="background-color: #e94560; color: white; border: none;
+                                   padding: 0.75rem 1.25rem; border-radius: 4px; cursor: pointer;
+                                   font-size: 1.3rem; font-weight: bold; line-height: 1;">+</button>
+                </div>
+                <ul id="taskBuilderList" style="list-style: none; padding: 0; margin: 0 0 0.5rem 0; min-height: 4rem;"></ul>
+                <p id="taskBuilderEmpty" style="color: #555; font-size: 0.9rem; margin: 0;">No tasks yet — type above and press + or Enter.</p>
+                <textarea id="quickTextarea" style="display: none;"></textarea>
             </div>
             <div class="tab-panel" id="markdown-panel" style="display: none;">
                 <textarea id="markdownTextarea" rows="5" placeholder="## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
@@ -55,8 +67,8 @@
 </div>
 
 <div class="card">
-    <h2>Upload & Run</h2>
-    <p style="color: #888; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist here will connect it to your workspace automatically.</p>
+    <h2>Choose Repositories to Connect</h2>
+    <p style="color: #888; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist file here will connect it to your workspace and make it available in Launch New Run.</p>
     <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
         <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
         <div style="margin-bottom: 1rem;">
@@ -69,7 +81,7 @@
         </div>
         <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
         <div id="fileName" style="margin-bottom: 1rem; color: #aaa;">No file selected</div>
-        <button id="uploadButton" onclick="uploadFile()" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Upload & Run</button>
+        <button id="uploadButton" onclick="uploadFile()" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Connect Repository</button>
     </div>
 </div>
 
@@ -96,7 +108,7 @@
                 <td style="padding: 0.75rem 0.5rem;">{{ run.progress }}</td>
                 <td style="padding: 0.75rem 0.5rem;">
                     <button onclick="stopRun('{{ run.run_id }}')" style="background-color: #dc2626; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Stop</button>
-                    <a href="/command-center/{{ run.run_id }}/logs" style="color: #60a5fa; text-decoration: none;">Logs</a>
+                    <a href="/command-center/{{ run.run_id }}/logs" style="color: #eee; text-decoration: none;">Logs</a>
                 </td>
             </tr>
             {% else %}
@@ -109,6 +121,42 @@
 </div>
 
 <script>
+    // Task builder (Quick tab)
+    const taskBuilderItems = [];
+
+    function renderTaskList() {
+        const list = document.getElementById('taskBuilderList');
+        const empty = document.getElementById('taskBuilderEmpty');
+        list.innerHTML = '';
+        taskBuilderItems.forEach((text, i) => {
+            const li = document.createElement('li');
+            li.style.cssText = 'display:flex;align-items:center;gap:0.5rem;background:#16213e;border-radius:4px;padding:0.6rem 0.75rem;margin-bottom:0.5rem;';
+            li.innerHTML = `
+                <span style="flex:1;color:#eee;">${i + 1}. ${text}</span>
+                <button type="button" onclick="removeTask(${i})"
+                        style="background:none;border:none;color:#e94560;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 0.25rem;"
+                        title="Remove">&times;</button>`;
+            list.appendChild(li);
+        });
+        empty.style.display = taskBuilderItems.length === 0 ? 'block' : 'none';
+        document.getElementById('quickTextarea').value = taskBuilderItems.join('\n');
+    }
+
+    function addTask() {
+        const input = document.getElementById('taskInput');
+        const text = input.value.trim();
+        if (!text) return;
+        taskBuilderItems.push(text);
+        input.value = '';
+        input.focus();
+        renderTaskList();
+    }
+
+    function removeTask(index) {
+        taskBuilderItems.splice(index, 1);
+        renderTaskList();
+    }
+
     // Tab switching
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', () => {
