@@ -1,8 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50">
-  <!-- Eye outline (almond shape) -->
-  <path d="M4,25 Q50,3 96,25 Q50,47 4,25 Z" fill="none" stroke="#8b0000" stroke-width="5" stroke-linejoin="round"/>
-  <!-- Iris ring -->
-  <circle cx="50" cy="25" r="16" fill="none" stroke="#8b0000" stroke-width="5"/>
-  <!-- Pupil -->
-  <circle cx="50" cy="25" r="8" fill="#8b0000"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Eye outline: cubic bezier almond, ~2.3:1 aspect ratio centered in square canvas -->
+  <path d="M5,50 C18,24 82,24 95,50 C82,76 18,76 5,50 Z"
+        fill="none" stroke="#8b0000" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- Iris ring: nearly fills the eye height -->
+  <circle cx="50" cy="50" r="18" fill="none" stroke="#8b0000" stroke-width="5.5"/>
+  <!-- Pupil: solid filled -->
+  <circle cx="50" cy="50" r="10" fill="#8b0000"/>
 </svg>
