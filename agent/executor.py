@@ -17,17 +17,17 @@ import signal
 import time
 from pathlib import Path
 
-from git_manager import GitManager
-from llm_client import LLMClient, BudgetExceededError
+from agent.git import GitManager
+from agent.llm import LLMClient, BudgetExceededError
 
 logger = logging.getLogger("agent.executor")
 
 PROTECTED_FILES = [
-    "agent_runner.py",
-    "task_executor.py",
-    "git_manager.py",
-    "llm_client.py",
-    "logger_setup.py",
+    "agent/runner.py",
+    "agent/executor.py",
+    "agent/git.py",
+    "agent/llm.py",
+    "agent/logger.py",
     ".env",
     ".gitignore"
 ]

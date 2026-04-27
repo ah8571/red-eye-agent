@@ -23,11 +23,11 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from git_manager import GitManager
-from llm_client import LLMClient, BudgetExceededError
-from task_executor import TaskExecutor
-from logger_setup import setup_logging, get_task_logger
-from report import generate_report
+from agent.git import GitManager
+from agent.llm import LLMClient, BudgetExceededError
+from agent.executor import TaskExecutor
+from agent.logger import setup_logging, get_task_logger
+from agent.report import generate_report
 
 logger = logging.getLogger("agent.runner")
 

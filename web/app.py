@@ -25,8 +25,8 @@ from web.config import (
     AGENT_CHECKLIST_PATH,
     AGENT_LOG_DIR
 )
-from process_manager import RunManager
-from checklist_parser import parse_markdown, parse_yaml_text
+from agent.process import RunManager
+from agent.checklist import parse_markdown, parse_yaml_text
 from web.github_repos import merge_with_config, get_repo_defaults
 
 app = FastAPI(title="Red-Eye Agent Dashboard")

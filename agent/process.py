@@ -74,8 +74,7 @@ class RunManager:
         
         # Spawn subprocess
         cmd = [
-            sys.executable,
-            "agent_runner.py",
+            sys.executable, "-m", "agent.runner",
             "--config", config_path,
             "--checklist", str(dest_checklist)
         ]

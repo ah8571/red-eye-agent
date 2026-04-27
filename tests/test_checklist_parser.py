@@ -1,6 +1,6 @@
 import unittest
 import yaml
-from checklist_parser import parse_markdown, parse_yaml_text, validate_checklist_dict
+from agent.checklist import parse_markdown, parse_yaml_text, validate_checklist_dict
 
 
 class TestParseMarkdown(unittest.TestCase):

@@ -61,6 +61,17 @@
 - [ ] Add sandbox enable/disable flag to `config.yaml`
 - [ ] Test that prompt injection via repo file content cannot exfiltrate env vars
 
+## 9. Branch Preview System (Approve & Merge flow)
+- [ ] After each agent run, commit changes to a branch (`redeye/<run-id>-<slug>`) instead of directly to main
+- [ ] Auto-start a preview server on a dedicated port (8001) from that branch on the Droplet
+- [ ] Add `staging.redeyeagent.com` subdomain: A-record → 161.35.119.24, Caddy block reverse-proxying to localhost:8001
+- [ ] Add Caddy wildcard cert support via DNS challenge for future `<branch>.preview.redeyeagent.com` per-branch previews
+- [ ] Expose "Preview" link, "Approve & Merge", and "Reject & Delete" buttons on each run card in Command Center
+- [ ] `POST /api/runs/{run_id}/approve` — merges branch to main, pushes, kills preview server
+- [ ] `POST /api/runs/{run_id}/reject` — deletes branch, kills preview server
+- [ ] Store `branch_name` and `preview_url` in the run record (registry / DB)
+- [ ] Add single-slot constraint: only one active preview at a time; new completed run claims the slot and previous preview is stopped
+
 ## Future / Phase 2
 - [ ] Scheduled runs (cron-based)
 - [ ] Multi-agent parallelism within a single run
@@ -70,4 +81,4 @@
 - [ ] Infrastructure provisioner (`provisioner.py`): agent calls Supabase/Stripe/DO management APIs for infra tasks declared in checklist
 
 ---
-*Last updated: April 26, 2026*
+*Last updated: April 27, 2026*

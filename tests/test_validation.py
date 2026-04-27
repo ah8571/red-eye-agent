@@ -11,7 +11,7 @@ from unittest.mock import patch
 # Add parent directory to path to import agent_runner
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from agent_runner import validate_checklist, validate_config
+from agent.runner import validate_checklist, validate_config
 
 
 class TestValidateChecklist(unittest.TestCase):
