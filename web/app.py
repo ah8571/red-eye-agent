@@ -39,8 +39,8 @@ class StartRunRequest(BaseModel):
 
 templates = Jinja2Templates(directory="web/templates")
 
-# Mount static files if needed
-# app.mount("/static", StaticFiles(directory="web/static"), name="static")
+# Serve files from web/public (favicon, images, etc.)
+app.mount("/public", StaticFiles(directory="web/public"), name="public")
 
 
 class NotAuthenticated(Exception):

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50">
+  <!-- Eye outline (almond shape) -->
+  <path d="M4,25 Q50,3 96,25 Q50,47 4,25 Z" fill="none" stroke="#8b0000" stroke-width="5" stroke-linejoin="round"/>
+  <!-- Iris ring -->
+  <circle cx="50" cy="25" r="16" fill="none" stroke="#8b0000" stroke-width="5"/>
+  <!-- Pupil -->
+  <circle cx="50" cy="25" r="8" fill="#8b0000"/>
+</svg>

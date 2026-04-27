@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Red-Eye Agent{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+    <link rel="icon" type="image/png" href="/public/favicon.png">
     <style>
         * {
             margin: 0;
@@ -33,10 +35,16 @@
             align-items: center;
         }
         .nav-title {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
             font-size: 1.5rem;
             font-weight: bold;
-            color: #e94560;
+            color: #eee;
             text-decoration: none;
+        }
+        .nav-title:hover {
+            color: #eee;
         }
         .nav-links {
             display: flex;
@@ -102,7 +110,20 @@
 <body>
     <nav>
         <div class="container nav-container">
-            <a href="/" class="nav-title">Red-Eye Agent</a>
+            <a href="/" class="nav-title">
+                <!-- Two-eye logo: left = red pupil (red eye), right = white pupil (white eye) -->
+                <svg width="64" height="26" viewBox="0 0 72 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <!-- Left eye: red pupil -->
+                    <path d="M2,14 Q18,2 34,14 Q18,26 2,14 Z" fill="none" stroke="#eee" stroke-width="2.5" stroke-linejoin="round"/>
+                    <circle cx="18" cy="14" r="7" fill="none" stroke="#eee" stroke-width="2.5"/>
+                    <circle cx="18" cy="14" r="3.5" fill="#e94560"/>
+                    <!-- Right eye: white pupil -->
+                    <path d="M38,14 Q54,2 70,14 Q54,26 38,14 Z" fill="none" stroke="#eee" stroke-width="2.5" stroke-linejoin="round"/>
+                    <circle cx="54" cy="14" r="7" fill="none" stroke="#eee" stroke-width="2.5"/>
+                    <circle cx="54" cy="14" r="3.5" fill="#eee"/>
+                </svg>
+                Red-Eye Agent
+            </a>
             <div class="nav-links">
                 <a href="/">Dashboard</a>
                 <a href="/command-center">Command Center</a>
