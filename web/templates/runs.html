@@ -7,7 +7,7 @@
         {% for file in log_files %}
         <li style="margin-bottom: 0.75rem;">
             <a href="/runs/{{ file.filename }}" style="color: #e94560; text-decoration: none;">{{ file.display_name }}</a>
-            <span style="color: #888; font-size: 0.9rem; margin-left: 0.5rem;">{{ file.timestamp }}</span>
+            <span style="color: #eee; font-size: 0.9rem; margin-left: 0.5rem;">{{ file.timestamp }}</span>
         </li>
         {% endfor %}
     </ul>

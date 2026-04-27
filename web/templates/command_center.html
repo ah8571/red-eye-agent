@@ -36,16 +36,16 @@
                                    font-size: 1.3rem; font-weight: bold; line-height: 1;">+</button>
                 </div>
                 <ul id="taskBuilderList" style="list-style: none; padding: 0; margin: 0 0 0.5rem 0; min-height: 4rem;"></ul>
-                <p id="taskBuilderEmpty" style="color: #555; font-size: 0.9rem; margin: 0;">No tasks yet — type above and press + or Enter.</p>
+                <p id="taskBuilderEmpty" style="color: #eee; font-size: 0.9rem; margin: 0;">No tasks yet — type above and press + or Enter.</p>
                 <textarea id="quickTextarea" style="display: none;"></textarea>
             </div>
             <div class="tab-panel" id="markdown-panel" style="display: none;">
                 <textarea id="markdownTextarea" rows="5" placeholder="## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
-                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Lines starting with - are tasks. Indent with context: for file hints.</div>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #eee;">Lines starting with - are tasks. Indent with context: for file hints.</div>
             </div>
             <div class="tab-panel" id="yaml-panel" style="display: none;">
                 <textarea id="yamlTextarea" rows="5" placeholder="Paste full checklist YAML here" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
-                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Must have a tasks: key with a list of task objects.</div>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #eee;">Must have a tasks: key with a list of task objects.</div>
             </div>
             <input type="hidden" id="activeFormat" name="format" value="quick">
         </div>
@@ -59,7 +59,7 @@
         <h3 style="margin-top: 0; color: #eee;">Preview</h3>
         <div id="previewError" style="color: #f87171; margin-bottom: 1rem; display: none;"></div>
         <div id="previewContent">
-            <p id="taskCount" style="color: #aaa; margin-bottom: 1rem;"></p>
+            <p id="taskCount" style="color: #eee; margin-bottom: 1rem;"></p>
             <ul id="taskList" style="list-style-type: none; padding-left: 0; margin-bottom: 1.5rem;"></ul>
             <button id="confirmLaunch" style="background-color: #10b981; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm & Launch</button>
         </div>
@@ -68,7 +68,7 @@
 
 <div class="card">
     <h2>Choose Repositories to Connect</h2>
-    <p style="color: #888; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist file here will connect it to your workspace and make it available in Launch New Run.</p>
+    <p style="color: #eee; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist file here will connect it to your workspace and make it available in Launch New Run.</p>
     <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
         <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
         <div style="margin-bottom: 1rem;">
@@ -80,8 +80,12 @@
             </select>
         </div>
         <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
-        <div id="fileName" style="margin-bottom: 1rem; color: #aaa;">No file selected</div>
-        <button id="uploadButton" onclick="uploadFile()" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Connect Repository</button>
+        <div id="fileName" style="margin-bottom: 1rem; color: #eee;">No file selected</div>
+        <button id="uploadButton" onclick="uploadFile()"
+                style="background-color: #555; color: #999; border: none; padding: 0.75rem 1.5rem;
+                       border-radius: 4px; cursor: not-allowed; font-weight: bold;"
+                disabled>Connect Repository</button>
+        <div id="uploadError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
     </div>
 </div>
 
@@ -113,7 +117,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="6" style="padding: 1rem; text-align: center; color: #888;">No active runs</td>
+                <td colspan="6" style="padding: 1rem; text-align: center; color: #eee;">No active runs</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -273,7 +277,7 @@
                     
                     li.innerHTML = `
                         <div style="color: #eee; margin-bottom: 0.25rem;">${truncated}</div>
-                        <div style="color: #aaa; font-size: 0.875rem;">${contextText}</div>
+                        <div style="color: #eee; font-size: 0.875rem;">${contextText}</div>
                     `;
                     taskList.appendChild(li);
                 });
@@ -350,9 +354,15 @@
         if (fileInput.files.length > 0) {
             fileNameDisplay.textContent = fileInput.files[0].name;
             uploadButton.disabled = false;
+            uploadButton.style.backgroundColor = '#e94560';
+            uploadButton.style.color = 'white';
+            uploadButton.style.cursor = 'pointer';
         } else {
             fileNameDisplay.textContent = 'No file selected';
             uploadButton.disabled = true;
+            uploadButton.style.backgroundColor = '#555';
+            uploadButton.style.color = '#999';
+            uploadButton.style.cursor = 'not-allowed';
         }
     });
     
@@ -364,9 +374,9 @@
             return;
         }
         
-        const formError = document.getElementById('formError');
-        formError.style.display = 'none';
-        
+        const uploadError = document.getElementById('uploadError');
+        uploadError.style.display = 'none';
+
         const formData = new FormData();
         formData.append('repo', repo);
         formData.append('file', file);
@@ -379,22 +389,21 @@
             
             if (response.ok) {
                 const data = await response.json();
-                alert(`Run started with ID: ${data.run_id}`);
+                alert(`Repository connected! Run started: ${data.run_id}`);
                 location.reload();
             } else {
-                // Try to parse JSON error
                 try {
                     const errorData = await response.json();
-                    formError.textContent = `Error: ${errorData.error}`;
+                    uploadError.textContent = `Error: ${errorData.detail || errorData.error}`;
                 } catch {
                     const errorText = await response.text();
-                    formError.textContent = `Error: ${errorText}`;
+                    uploadError.textContent = `Error: ${errorText}`;
                 }
-                formError.style.display = 'block';
+                uploadError.style.display = 'block';
             }
         } catch (err) {
-            formError.textContent = `Network error: ${err.message}`;
-            formError.style.display = 'block';
+            uploadError.textContent = `Network error: ${err.message}`;
+            uploadError.style.display = 'block';
         }
     }
 </script>
