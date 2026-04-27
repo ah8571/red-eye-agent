@@ -27,6 +27,7 @@ from web.config import (
 )
 from process_manager import RunManager
 from checklist_parser import parse_markdown, parse_yaml_text
+from web.github_repos import merge_with_config, get_repo_defaults
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
 
@@ -310,19 +311,19 @@ async def command_center(
 ):
     """Command center page showing repos and active runs."""
     # Load repos from config.yaml
-    repos = []
+    config_repos = []
     if AGENT_CONFIG_PATH.exists():
         with open(AGENT_CONFIG_PATH, 'r') as f:
             config = yaml.safe_load(f)
-            repos = config.get('repos', [])
-    
-    # Extract repo names for template
-    repo_names = [r['name'] for r in repos]
-    
+            config_repos = config.get('repos', [])
+
+    # Merge config repos with all repos accessible via GitHub PAT
+    repo_names = merge_with_config(config_repos)
+
     # Get active runs via RunManager
     manager = RunManager()
     active_runs = manager.list_runs()
-    
+
     return templates.TemplateResponse(
         request,
         "command_center.html",
@@ -482,15 +483,21 @@ async def start_run(
     
     # Extract repo names for validation
     repo_names = [r['name'] for r in repos]
-    
-    # Validate repo
+
+    # If repo not in config.yaml, auto-register it using GitHub API defaults
     if request.repo not in repo_names:
-        raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
-    
+        defaults = get_repo_defaults(request.repo)
+        if defaults is None:
+            raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not found — check your GitHub PAT has access")
+        repos.append(defaults)
+        config['repos'] = repos
+        with open(AGENT_CONFIG_PATH, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
     # Validate format
     if request.format not in ("quick", "markdown", "yaml"):
         raise HTTPException(status_code=400, detail="Invalid format")
-    
+
     # Build checklist dict based on format
     try:
         if request.format == "quick":
@@ -514,7 +521,7 @@ async def start_run(
             checklist = parse_yaml_text(request.input_text)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
-    
+
     # Generate run_id
     run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     
@@ -558,10 +565,16 @@ async def upload_run(
     
     # Extract repo names for validation
     repo_names = [r['name'] for r in repos]
-    
-    # Validate repo
+
+    # If repo not in config.yaml, auto-register it using GitHub API defaults
     if repo not in repo_names:
-        raise HTTPException(status_code=400, detail=f"Repo '{repo}' not in configured repos")
+        defaults = get_repo_defaults(repo)
+        if defaults is None:
+            raise HTTPException(status_code=400, detail=f"Repo '{repo}' not found — check your GitHub PAT has access")
+        repos.append(defaults)
+        config['repos'] = repos
+        with open(AGENT_CONFIG_PATH, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
     
     # Detect format by file extension
     filename = file.filename.lower()
