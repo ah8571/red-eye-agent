@@ -56,12 +56,13 @@
 
 <div class="card">
     <h2>Upload & Run</h2>
+    <p style="color: #888; margin-bottom: 1.5rem; font-size: 0.9rem;">Choose any repository from your GitHub account. Uploading a checklist here will connect it to your workspace automatically.</p>
     <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
         <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
         <div style="margin-bottom: 1rem;">
             <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
             <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
-                {% for repo in repos %}
+                {% for repo in all_repos %}
                 <option value="{{ repo }}">{{ repo }}</option>
                 {% endfor %}
             </select>

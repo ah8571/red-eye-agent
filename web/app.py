@@ -317,8 +317,11 @@ async def command_center(
             config = yaml.safe_load(f)
             config_repos = config.get('repos', [])
 
-    # Merge config repos with all repos accessible via GitHub PAT
-    repo_names = merge_with_config(config_repos)
+    # Connected repos (config.yaml) — shown in Launch New Run
+    connected_repo_names = sorted([r['name'] for r in config_repos])
+
+    # All repos accessible via GitHub PAT — shown in Upload & Run
+    all_repo_names = merge_with_config(config_repos)
 
     # Get active runs via RunManager
     manager = RunManager()
@@ -329,7 +332,8 @@ async def command_center(
         "command_center.html",
         {
             "user_email": user_email,
-            "repos": repo_names,
+            "repos": connected_repo_names,
+            "all_repos": all_repo_names,
             "active_runs": active_runs
         }
     )
