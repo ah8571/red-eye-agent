@@ -598,6 +598,34 @@ async def upload_run(
     )
 
 
+@app.post("/api/repos/connect")
+async def connect_repo(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Register a repo in config.yaml without starting a run."""
+    body = await request.json()
+    repo_name = body.get("repo", "").strip()
+    if not repo_name:
+        raise HTTPException(status_code=400, detail="repo is required")
+
+    # Load current config
+    if not AGENT_CONFIG_PATH.exists():
+        config = {"repos": []}
+    else:
+        with open(AGENT_CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f) or {"repos": []}
+
+    existing_names = [r['name'] for r in config.get('repos', [])]
+    if repo_name not in existing_names:
+        defaults = get_repo_defaults(repo_name)
+        config.setdefault('repos', []).append(defaults)
+        with open(AGENT_CONFIG_PATH, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+    return JSONResponse(status_code=200, content={"status": "connected", "repo": repo_name})
+
+
 @app.post("/api/runs/{run_id}/stop")
 async def stop_run(
     run_id: str,

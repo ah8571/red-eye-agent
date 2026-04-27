@@ -129,11 +129,10 @@
             </select>
         </div>
         <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
-        <div id="fileName" style="margin-bottom: 1rem; color: #eee;">No file selected</div>
-        <button id="uploadButton" onclick="uploadFile()"
-                style="background-color: #555; color: #999; border: none; padding: 0.75rem 1.5rem;
-                       border-radius: 4px; cursor: not-allowed; font-weight: bold;"
-                disabled>Connect Repository</button>
+        <div id="fileName" style="margin-bottom: 1rem; color: #eee;">No file selected — or just pick a repo above and click Connect</div>
+        <button id="uploadButton" onclick="connectOrUpload()"
+                style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem;
+                       border-radius: 4px; cursor: pointer; font-weight: bold;">Connect Repository</button>
         <div id="uploadError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
     </div>
     </div>
@@ -489,58 +488,52 @@
     // File upload handling
     const fileInput = document.getElementById('fileUpload');
     const fileNameDisplay = document.getElementById('fileName');
-    const uploadButton = document.getElementById('uploadButton');
-    
+
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
-            fileNameDisplay.textContent = fileInput.files[0].name;
-            uploadButton.disabled = false;
-            uploadButton.style.backgroundColor = '#e94560';
-            uploadButton.style.color = 'white';
-            uploadButton.style.cursor = 'pointer';
+            fileNameDisplay.textContent = fileInput.files[0].name + ' — click Connect to upload and start a run';
         } else {
-            fileNameDisplay.textContent = 'No file selected';
-            uploadButton.disabled = true;
-            uploadButton.style.backgroundColor = '#555';
-            uploadButton.style.color = '#999';
-            uploadButton.style.cursor = 'not-allowed';
+            fileNameDisplay.textContent = 'No file selected — or just pick a repo above and click Connect';
         }
     });
-    
-    async function uploadFile() {
+
+    async function connectOrUpload() {
         const repo = document.getElementById('uploadRepoSelect').value;
         const file = fileInput.files[0];
-        if (!file) {
-            alert('Please select a file');
-            return;
-        }
-        
         const uploadError = document.getElementById('uploadError');
         uploadError.style.display = 'none';
 
-        const formData = new FormData();
-        formData.append('repo', repo);
-        formData.append('file', file);
-        
         try {
-            const response = await fetch('/api/runs/upload', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                alert(`Repository connected! Run started: ${data.run_id}`);
-                location.reload();
-            } else {
-                try {
-                    const errorData = await response.json();
-                    uploadError.textContent = `Error: ${errorData.detail || errorData.error}`;
-                } catch {
-                    const errorText = await response.text();
-                    uploadError.textContent = `Error: ${errorText}`;
+            if (file) {
+                // File selected: upload checklist and start run
+                const formData = new FormData();
+                formData.append('repo', repo);
+                formData.append('file', file);
+                const response = await fetch('/api/runs/upload', { method: 'POST', body: formData });
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`Repository connected and run started: ${data.run_id}`);
+                    location.reload();
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    uploadError.textContent = `Error: ${err.detail || err.error || 'Upload failed'}`;
+                    uploadError.style.display = 'block';
                 }
-                uploadError.style.display = 'block';
+            } else {
+                // No file: just register the repo in config.yaml
+                const response = await fetch('/api/repos/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo })
+                });
+                if (response.ok) {
+                    alert(`Repository "${repo}" connected successfully.`);
+                    location.reload();
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    uploadError.textContent = `Error: ${err.detail || 'Failed to connect repository'}`;
+                    uploadError.style.display = 'block';
+                }
             }
         } catch (err) {
             uploadError.textContent = `Network error: ${err.message}`;
