@@ -79,6 +79,13 @@
 - [ ] Self-hosted install script (one command to deploy on any VPS)
 - [ ] Public API for programmatic checklist submission
 - [ ] Infrastructure provisioner (`provisioner.py`): agent calls Supabase/Stripe/DO management APIs for infra tasks declared in checklist
+- [ ] Durable workflows / task checkpointing (resume mid-task on crash — see `alternatives.md` for Open Agents pattern)
+
+## Future / Phase 3 — Messaging Integration
+- [ ] **Outbound notifications via WhatsApp** — send run summary when finished. Options: Twilio (paid) or Baileys (open-source, no account needed — see `alternatives.md` OpenClaw notes)
+- [ ] Add `notifier.py` messaging backend switchable between email/Slack/WhatsApp
+- [ ] **Inbound WhatsApp commands** — accept `status`, `pause`, `skip <task_id>`, `add task <description>` messages routed through the agent
+- [ ] **Conversational mode** — freeform messages parsed by LLM with repo context; agent decides action (run task, answer question, show logs)
 
 ---
 *Last updated: April 27, 2026*
