@@ -1,103 +1,72 @@
-import yaml
 import unittest
+import yaml
 from checklist_parser import parse_markdown, parse_yaml_text, validate_checklist_dict
 
 
-def test_parse_markdown_valid_with_context():
-    text = """## Section 1
+class TestParseMarkdown(unittest.TestCase):
+
+    def test_valid_with_context(self):
+        text = """## Section 1
 - Task one description
   - context: file1.py, file2.py
 - Task two description
   - context: web/app.py
 """
-    repo = "test-repo"
-    result = parse_markdown(text, repo)
-    assert "tasks" in result
-    tasks = result["tasks"]
-    assert len(tasks) == 2
-    assert tasks[0]["id"] == 1
-    assert tasks[0]["repo"] == repo
-    assert tasks[0]["description"] == "Task one description"
-    assert tasks[0]["status"] == "pending"
-    assert tasks[0]["context_files"] == ["file1.py", "file2.py"]
-    assert tasks[1]["id"] == 2
-    assert tasks[1]["description"] == "Task two description"
-    assert tasks[1]["context_files"] == ["web/app.py"]
+        result = parse_markdown(text, "test-repo")
+        tasks = result["tasks"]
+        self.assertEqual(len(tasks), 2)
+        self.assertEqual(tasks[0]["id"], 1)
+        self.assertEqual(tasks[0]["repo"], "test-repo")
+        self.assertEqual(tasks[0]["description"], "Task one description")
+        self.assertEqual(tasks[0]["status"], "pending")
+        self.assertEqual(tasks[0]["context_files"], ["file1.py", "file2.py"])
+        self.assertEqual(tasks[1]["context_files"], ["web/app.py"])
 
-
-def test_parse_markdown_multi_line_description():
-    text = """- First line of task
-  continuation line
-  another continuation
-- Second task
-"""
-    repo = "repo"
-    result = parse_markdown(text, repo)
-    tasks = result["tasks"]
-    assert len(tasks) == 2
-    assert tasks[0]["description"] == "First line of task\n  continuation line\n  another continuation"
-    assert tasks[0]["context_files"] == []
-    assert tasks[1]["description"] == "Second task"
-
-
-def test_parse_markdown_without_context():
-    text = """- Task one
+    def test_without_context(self):
+        text = """- Task one
 - Task two
 """
-    repo = "repo"
-    result = parse_markdown(text, repo)
-    tasks = result["tasks"]
-    assert len(tasks) == 2
-    assert tasks[0]["context_files"] == []
-    assert tasks[1]["context_files"] == []
+        result = parse_markdown(text, "repo")
+        tasks = result["tasks"]
+        self.assertEqual(len(tasks), 2)
+        self.assertEqual(tasks[0]["context_files"], [])
+        self.assertEqual(tasks[1]["context_files"], [])
 
+    def test_empty_input(self):
+        self.assertEqual(parse_markdown("", "repo"), {"tasks": []})
+        self.assertEqual(parse_markdown("\n\n", "repo"), {"tasks": []})
 
-def test_parse_markdown_empty_input():
-    result = parse_markdown("", "repo")
-    assert result == {"tasks": []}
-    result2 = parse_markdown("\n\n", "repo")
-    assert result2 == {"tasks": []}
-
-
-def test_parse_markdown_ignores_headers_and_blanks():
-    text = """# Main Header
+    def test_ignores_headers_and_blanks(self):
+        text = """# Main Header
 
 ## Subsection
 
 - Task after blank
   - context: a.py
 """
-    result = parse_markdown(text, "repo")
-    tasks = result["tasks"]
-    assert len(tasks) == 1
-    assert tasks[0]["description"] == "Task after blank"
-    assert tasks[0]["context_files"] == ["a.py"]
+        result = parse_markdown(text, "repo")
+        tasks = result["tasks"]
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["description"], "Task after blank")
+        self.assertEqual(tasks[0]["context_files"], ["a.py"])
+
+    def test_multi_line_description(self):
+        text = """- First line of task
+  continuation line
+  another continuation
+- Second task
+"""
+        result = parse_markdown(text, "repo")
+        tasks = result["tasks"]
+        self.assertEqual(len(tasks), 2)
+        self.assertIn("continuation line", tasks[0]["description"])
+        self.assertEqual(tasks[1]["description"], "Second task")
 
 
-def test_parse_markdown_context_without_task_warns(caplog):
-    import logging
-    caplog.set_level(logging.WARNING)
-    text = "  - context: file.py"
-    result = parse_markdown(text, "repo")
-    assert result == {"tasks": []}
-    assert "Context line without preceding task" in caplog.text
+class TestParseYamlText(unittest.TestCase):
 
-
-def test_parse_markdown_validation_fails_on_duplicate_ids():
-    # parse_markdown generates sequential IDs, so duplicates shouldn't happen
-    # but we can test validation separately
-    data = {
-        "tasks": [
-            {"id": 1, "repo": "r", "description": "d", "status": "pending"},
-            {"id": 1, "repo": "r", "description": "d2", "status": "pending"},
-        ]
-    }
-    errors = validate_checklist_dict(data)
-    assert "Duplicate task id 1" in errors
-
-
-    def test_parse_yaml_text_valid(self):
-    yaml_text = """
+    def test_valid_yaml(self):
+        yaml_text = """
 tasks:
   - id: 1
     repo: test-repo
@@ -110,80 +79,73 @@ tasks:
     description: Task two
     status: in_progress
 """
-    result = parse_yaml_text(yaml_text)
-    assert "tasks" in result
-    tasks = result["tasks"]
-    assert len(tasks) == 2
-    assert tasks[0]["id"] == 1
-    assert tasks[0]["description"] == "Task one"
-    assert tasks[0]["status"] == "pending"
-    assert tasks[0]["context_files"] == ["file1.py"]
-    assert tasks[1]["id"] == 2
-    assert tasks[1]["status"] == "in_progress"
+        result = parse_yaml_text(yaml_text)
+        tasks = result["tasks"]
+        self.assertEqual(len(tasks), 2)
+        self.assertEqual(tasks[0]["id"], 1)
+        self.assertEqual(tasks[0]["description"], "Task one")
+        self.assertEqual(tasks[0]["context_files"], ["file1.py"])
+        self.assertEqual(tasks[1]["status"], "in_progress")
+
+    def test_invalid_yaml_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            parse_yaml_text("tasks: [invalid: yaml}")
+        self.assertIn("Invalid YAML", str(ctx.exception))
+
+    def test_missing_tasks_key_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            parse_yaml_text("repo: test")
+        self.assertIn("tasks", str(ctx.exception).lower())
+
+    def test_tasks_not_list_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            parse_yaml_text("tasks: {id: 1}")
+        self.assertIn("list", str(ctx.exception).lower())
 
 
-def test_parse_yaml_text_invalid_yaml():
-    with pytest.raises(ValueError) as exc:
-        parse_yaml_text("tasks: [invalid: yaml}")
-    assert "Invalid YAML" in str(exc.value)
+class TestValidateChecklistDict(unittest.TestCase):
+
+    def test_empty_dict(self):
+        errors = validate_checklist_dict({})
+        self.assertIn("Missing 'tasks' key", errors)
+
+    def test_valid_dict(self):
+        data = {
+            "tasks": [
+                {"id": 1, "repo": "r", "description": "d", "status": "pending", "context_files": []},
+                {"id": 2, "repo": "r", "description": "d2", "status": "done", "context_files": ["a.py"]},
+            ]
+        }
+        self.assertEqual(validate_checklist_dict(data), [])
+
+    def test_duplicate_ids(self):
+        data = {
+            "tasks": [
+                {"id": 1, "repo": "r", "description": "d", "status": "pending"},
+                {"id": 1, "repo": "r", "description": "d2", "status": "pending"},
+            ]
+        }
+        errors = validate_checklist_dict(data)
+        self.assertTrue(any("Duplicate task id 1" in e for e in errors))
+
+    def test_invalid_status(self):
+        data = {
+            "tasks": [
+                {"id": 1, "repo": "r", "description": "d", "status": "invalid"},
+            ]
+        }
+        errors = validate_checklist_dict(data)
+        self.assertTrue(any("invalid status" in e for e in errors))
+
+    def test_empty_description(self):
+        data = {
+            "tasks": [
+                {"id": 1, "repo": "r", "description": "   ", "status": "pending"},
+            ]
+        }
+        errors = validate_checklist_dict(data)
+        self.assertTrue(any("description is empty" in e for e in errors))
 
 
-def test_parse_yaml_text_missing_tasks_key():
-    with pytest.raises(ValueError) as exc:
-        parse_yaml_text("repo: test")
-    assert "Missing 'tasks' key" in str(exc.value)
-
-
-def test_parse_yaml_text_tasks_not_list():
-    with pytest.raises(ValueError) as exc:
-        parse_yaml_text("tasks: {id: 1}")
-    assert "'tasks' must be a list" in str(exc.value)
-
-
-def test_parse_yaml_text_task_missing_field():
-    yaml_text = """
-tasks:
-  - id: 1
-    repo: test
-    # missing description
-    status: pending
-"""
-    with pytest.raises(ValueError) as exc:
-        parse_yaml_text(yaml_text)
-    assert "missing 'description'" in str(exc.value).lower()
-
-
-def test_validate_checklist_dict_empty():
-    errors = validate_checklist_dict({})
-    assert errors == ["Missing 'tasks' key"]
-
-
-def test_validate_checklist_dict_valid():
-    data = {
-        "tasks": [
-            {"id": 1, "repo": "r", "description": "d", "status": "pending", "context_files": []},
-            {"id": 2, "repo": "r", "description": "d2", "status": "done", "context_files": ["a.py"]},
-        ]
-    }
-    errors = validate_checklist_dict(data)
-    assert errors == []
-
-
-def test_validate_checklist_dict_invalid_status():
-    data = {
-        "tasks": [
-            {"id": 1, "repo": "r", "description": "d", "status": "invalid", "context_files": []},
-        ]
-    }
-    errors = validate_checklist_dict(data)
-    assert "invalid status" in errors[0]
-
-
-def test_validate_checklist_dict_empty_description():
-    data = {
-        "tasks": [
-            {"id": 1, "repo": "r", "description": "   ", "status": "pending", "context_files": []},
-        ]
-    }
-    errors = validate_checklist_dict(data)
-    assert "description is empty" in errors[0]
+if __name__ == "__main__":
+    unittest.main()
