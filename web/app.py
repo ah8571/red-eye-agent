@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException
+from fastapi import FastAPI, Request, Form, Depends, Response, status, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -26,13 +26,15 @@ from web.config import (
     AGENT_LOG_DIR
 )
 from process_manager import RunManager
+from checklist_parser import parse_markdown, parse_yaml_text
 
 app = FastAPI(title="Red-Eye Agent Dashboard")
 
 
 class StartRunRequest(BaseModel):
     repo: str
-    tasks: list[str]
+    input_text: str
+    format: str = "quick"
 
 templates = Jinja2Templates(directory="web/templates")
 
@@ -314,6 +316,9 @@ async def command_center(
             config = yaml.safe_load(f)
             repos = config.get('repos', [])
     
+    # Extract repo names for template
+    repo_names = [r['name'] for r in repos]
+    
     # Get active runs via RunManager
     manager = RunManager()
     active_runs = manager.list_runs()
@@ -323,7 +328,7 @@ async def command_center(
         "command_center.html",
         {
             "user_email": user_email,
-            "repos": repos,
+            "repos": repo_names,
             "active_runs": active_runs
         }
     )
@@ -357,6 +362,21 @@ async def run_logs_page(
     )
 
 
+@app.get("/command-center/help", response_class=HTMLResponse)
+async def command_center_help(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Display help documentation for input formats."""
+    return templates.TemplateResponse(
+        request,
+        "import_help.html",
+        {
+            "user_email": user_email
+        }
+    )
+
+
 @app.post("/checklist/save")
 async def checklist_save(
     request: Request,
@@ -383,6 +403,69 @@ async def checklist_save(
     return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
 
 
+@app.post("/api/runs/preview")
+async def preview_run(
+    request: StartRunRequest,
+    user_email: str = Depends(get_current_user)
+):
+    """Preview parsed tasks without starting a run."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
+    # Validate repo
+    if request.repo not in repo_names:
+        raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
+    
+    # Validate format
+    if request.format not in ("quick", "markdown", "yaml"):
+        raise HTTPException(status_code=400, detail="Invalid format")
+    
+    # Build checklist dict based on format
+    try:
+        if request.format == "quick":
+            # Split input_text by newlines, filter empty lines
+            lines = [line.strip() for line in request.input_text.splitlines() if line.strip()]
+            checklist = {
+                "tasks": [
+                    {
+                        "id": i + 1,
+                        "repo": request.repo,
+                        "description": desc,
+                        "status": "pending",
+                        "context_files": []
+                    }
+                    for i, desc in enumerate(lines)
+                ]
+            }
+        elif request.format == "markdown":
+            checklist = parse_markdown(request.input_text, request.repo)
+        else:  # yaml
+            checklist = parse_yaml_text(request.input_text)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    
+    # Return tasks preview
+    tasks = checklist.get("tasks", [])
+    # Ensure each task has id, description, context_files
+    for task in tasks:
+        task.setdefault("id", "")
+        task.setdefault("description", "")
+        task.setdefault("context_files", [])
+    
+    return JSONResponse(
+        status_code=200,
+        content={"tasks": tasks, "count": len(tasks)}
+    )
+
+
 @app.post("/api/runs/start")
 async def start_run(
     request: StartRunRequest,
@@ -397,26 +480,43 @@ async def start_run(
         config = yaml.safe_load(f)
     repos = config.get('repos', [])
     
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
     # Validate repo
-    if request.repo not in repos:
+    if request.repo not in repo_names:
         raise HTTPException(status_code=400, detail=f"Repo '{request.repo}' not in configured repos")
+    
+    # Validate format
+    if request.format not in ("quick", "markdown", "yaml"):
+        raise HTTPException(status_code=400, detail="Invalid format")
+    
+    # Build checklist dict based on format
+    try:
+        if request.format == "quick":
+            # Split input_text by newlines, filter empty lines
+            lines = [line.strip() for line in request.input_text.splitlines() if line.strip()]
+            checklist = {
+                "tasks": [
+                    {
+                        "id": i + 1,
+                        "repo": request.repo,
+                        "description": desc,
+                        "status": "pending",
+                        "context_files": []
+                    }
+                    for i, desc in enumerate(lines)
+                ]
+            }
+        elif request.format == "markdown":
+            checklist = parse_markdown(request.input_text, request.repo)
+        else:  # yaml
+            checklist = parse_yaml_text(request.input_text)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     
     # Generate run_id
     run_id = f"{request.repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    
-    # Build checklist dict
-    checklist = {
-        "tasks": [
-            {
-                "id": i + 1,
-                "repo": request.repo,
-                "description": desc,
-                "status": "pending",
-                "context_files": []
-            }
-            for i, desc in enumerate(request.tasks)
-        ]
-    }
     
     # Write to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
@@ -434,6 +534,76 @@ async def start_run(
     
     # Temp file will be cleaned up by the subprocess or after copy
     # We could schedule cleanup but RunManager copies it.
+    
+    return JSONResponse(
+        status_code=200,
+        content={"run_id": run_id, "status": "started"}
+    )
+
+
+@app.post("/api/runs/upload")
+async def upload_run(
+    repo: str = Form(...),
+    file: UploadFile = File(...),
+    user_email: str = Depends(get_current_user)
+):
+    """Start a new run from an uploaded file."""
+    # Load repos from config.yaml
+    if not AGENT_CONFIG_PATH.exists():
+        raise HTTPException(status_code=500, detail="Configuration not found")
+    
+    with open(AGENT_CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    repos = config.get('repos', [])
+    
+    # Extract repo names for validation
+    repo_names = [r['name'] for r in repos]
+    
+    # Validate repo
+    if repo not in repo_names:
+        raise HTTPException(status_code=400, detail=f"Repo '{repo}' not in configured repos")
+    
+    # Detect format by file extension
+    filename = file.filename.lower()
+    if filename.endswith('.md'):
+        format = "markdown"
+    elif filename.endswith('.yaml') or filename.endswith('.yml'):
+        format = "yaml"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    
+    # Read file content as text
+    try:
+        content = await file.read()
+        input_text = content.decode('utf-8')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+    
+    # Build checklist dict based on format
+    try:
+        if format == "markdown":
+            checklist = parse_markdown(input_text, repo)
+        else:  # yaml
+            checklist = parse_yaml_text(input_text)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    
+    # Generate run_id
+    run_id = f"{repo}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    
+    # Write to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+        yaml.dump(checklist, tmp)
+        temp_checklist_path = tmp.name
+    
+    try:
+        # Start run via RunManager
+        manager = RunManager()
+        manager.start_run(run_id, repo, temp_checklist_path)
+    except Exception as e:
+        # Clean up temp file on error
+        os.unlink(temp_checklist_path)
+        raise HTTPException(status_code=500, detail=f"Failed to start run: {e}")
     
     return JSONResponse(
         status_code=200,

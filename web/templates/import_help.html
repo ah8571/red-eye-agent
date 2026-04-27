@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Format Help — Red-Eye Agent{% endblock %}
+
+{% block content %}
+<h1>Import Format Help</h1>
+
+<div class="card">
+    <h2>Quick Format</h2>
+    <p>One task per line. No context files.</p>
+    <pre style="background-color: #16213e; color: white; padding: 1rem; border-radius: 8px; font-family: monospace; overflow-x: auto;">Add input validation to the login form
+Create a new API endpoint for user profiles
+Update the README with installation instructions
+Fix the broken unit test in test_auth.py</pre>
+</div>
+
+<div class="card">
+    <h2>Markdown Format</h2>
+    <p>Use Markdown headings for sections and bullet points for tasks. Indent lines with <code>context:</code> to specify relevant files.</p>
+    <pre style="background-color: #16213e; color: white; padding: 1rem; border-radius: 8px; font-family: monospace; overflow-x: auto;">## Safety
+- Add input validation to the login form
+  - context: web/auth.py, web/templates/login.html
+- Implement rate limiting on the API
+  - context: web/app.py, web/middleware.py
+
+## Features
+- Create a new API endpoint for user profiles
+  - context: web/app.py, web/models.py
+- Add a dashboard widget for recent activity
+  - context: web/templates/dashboard.html, web/static/js/dashboard.js
+
+## Documentation
+- Update the README with installation instructions
+  - context: README.md
+- Write API documentation for the new endpoints
+  - context: docs/api.md</pre>
+</div>
+
+<div class="card">
+    <h2>YAML Format</h2>
+    <p>Full checklist YAML structure with explicit fields.</p>
+    <pre style="background-color: #16213e; color: white; padding: 1rem; border-radius: 8px; font-family: monospace; overflow-x: auto;">tasks:
+  - id: 1
+    repo: my-repo
+    description: Add input validation to the login form
+    status: pending
+    context_files:
+      - web/auth.py
+      - web/templates/login.html
+  - id: 2
+    repo: my-repo
+    description: Create a new API endpoint for user profiles
+    status: pending
+    context_files:
+      - web/app.py
+      - web/models.py
+  - id: 3
+    repo: my-repo
+    description: Update the README with installation instructions
+    status: done
+    context_files:
+      - README.md</pre>
+</div>
+
+<div class="card">
+    <h2>Notes</h2>
+    <ul>
+        <li>All formats require authentication to use.</li>
+        <li>Quick format tasks are assigned the selected repository and have empty context files.</li>
+        <li>Markdown format: tasks inherit the repository from the selection; context lines are optional.</li>
+        <li>YAML format: repository can be specified per task; the UI selection is ignored.</li>
+    </ul>
+</div>
+
+<p><a href="/command-center" style="color: #60a5fa; text-decoration: none;">← Back to Command Center</a></p>
+{% endblock %}

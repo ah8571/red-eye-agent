@@ -17,11 +17,59 @@
             </select>
         </div>
         <div style="margin-bottom: 1rem;">
-            <label for="taskTextarea" style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
-            <textarea id="taskTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: inherit;"></textarea>
+            <label style="display: block; margin-bottom: 0.5rem;">Task Descriptions</label>
+            <div class="tab-buttons" style="display: flex; margin-bottom: 0.5rem; align-items: center;">
+                <button type="button" class="tab-button active" data-tab="quick" style="flex: 1; background-color: #e94560; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Quick</button>
+                <button type="button" class="tab-button" data-tab="markdown" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">Markdown</button>
+                <button type="button" class="tab-button" data-tab="yaml" style="flex: 1; background-color: #0f3460; color: white; border: none; padding: 0.75rem; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold;">YAML</button>
+                <a href="/command-center/help" style="margin-left: 1rem; font-size: 0.875rem; color: #60a5fa; text-decoration: none; white-space: nowrap;">Format Help</a>
+            </div>
+            <div class="tab-panel" id="quick-panel" style="display: block;">
+                <textarea id="quickTextarea" rows="5" placeholder="Enter one task per line" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+            </div>
+            <div class="tab-panel" id="markdown-panel" style="display: none;">
+                <textarea id="markdownTextarea" rows="5" placeholder="## Section Name\n- Task description here\n  - context: file1.py, file2.py\n- Another task\n  - context: web/app.py" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Lines starting with - are tasks. Indent with context: for file hints.</div>
+            </div>
+            <div class="tab-panel" id="yaml-panel" style="display: none;">
+                <textarea id="yamlTextarea" rows="5" placeholder="Paste full checklist YAML here" style="width: 100%; padding: 0.5rem; background-color: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 4px; font-family: monospace; min-height: 300px; resize: vertical;"></textarea>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #aaa;">Must have a tasks: key with a list of task objects.</div>
+            </div>
+            <input type="hidden" id="activeFormat" name="format" value="quick">
         </div>
-        <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="button" id="previewButton" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Preview</button>
+            <button type="submit" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Start Run</button>
+        </div>
+        <div id="formError" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #7f1d1d; color: #fca5a5; border-radius: 4px; border: 1px solid #ef4444;"></div>
     </form>
+    <div id="previewResult" style="display: none; margin-top: 2rem; padding: 1.5rem; background-color: #0f3460; border-radius: 8px; border: 1px solid #16213e;">
+        <h3 style="margin-top: 0; color: #eee;">Preview</h3>
+        <div id="previewError" style="color: #f87171; margin-bottom: 1rem; display: none;"></div>
+        <div id="previewContent">
+            <p id="taskCount" style="color: #aaa; margin-bottom: 1rem;"></p>
+            <ul id="taskList" style="list-style-type: none; padding-left: 0; margin-bottom: 1.5rem;"></ul>
+            <button id="confirmLaunch" style="background-color: #10b981; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm & Launch</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Upload & Run</h2>
+    <div style="border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
+        <input type="file" id="fileUpload" accept=".md,.yaml,.yml" style="display: none;">
+        <div style="margin-bottom: 1rem;">
+            <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
+            <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
+                {% for repo in repos %}
+                <option value="{{ repo.name }}">{{ repo.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button onclick="document.getElementById('fileUpload').click()" style="background-color: #0f3460; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 1rem;">Choose File</button>
+        <div id="fileName" style="margin-bottom: 1rem; color: #aaa;">No file selected</div>
+        <button id="uploadButton" onclick="uploadFile()" style="background-color: #e94560; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Upload & Run</button>
+    </div>
 </div>
 
 <div class="card">
@@ -60,12 +108,40 @@
 </div>
 
 <script>
+    // Tab switching
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const tab = button.dataset.tab;
+            // Update active button styles
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.style.backgroundColor = '#0f3460';
+            });
+            button.style.backgroundColor = '#e94560';
+            // Show corresponding panel
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            document.getElementById(`${tab}-panel`).style.display = 'block';
+            // Update hidden format field
+            document.getElementById('activeFormat').value = tab;
+        });
+    });
+    
     document.getElementById('launchForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const repo = document.getElementById('repoSelect').value;
-        const tasks = document.getElementById('taskTextarea').value
-            .split('\n')
-            .filter(line => line.trim());
+        const format = document.getElementById('activeFormat').value;
+        let inputText = '';
+        if (format === 'quick') {
+            inputText = document.getElementById('quickTextarea').value;
+        } else if (format === 'markdown') {
+            inputText = document.getElementById('markdownTextarea').value;
+        } else if (format === 'yaml') {
+            inputText = document.getElementById('yamlTextarea').value;
+        }
+        
+        const formError = document.getElementById('formError');
+        formError.style.display = 'none';
         
         try {
             const response = await fetch('/api/runs/start', {
@@ -73,7 +149,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ repo, tasks })
+                body: JSON.stringify({ repo, format, input_text: inputText })
             });
             
             if (response.ok) {
@@ -81,11 +157,118 @@
                 alert(`Run started with ID: ${data.run_id}`);
                 location.reload();
             } else {
-                const error = await response.text();
-                alert(`Error: ${error}`);
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    formError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    formError.textContent = `Error: ${errorText}`;
+                }
+                formError.style.display = 'block';
             }
         } catch (err) {
-            alert(`Network error: ${err.message}`);
+            formError.textContent = `Network error: ${err.message}`;
+            formError.style.display = 'block';
+        }
+    });
+    
+    // Preview button handling
+    document.getElementById('previewButton').addEventListener('click', async () => {
+        const repo = document.getElementById('repoSelect').value;
+        const format = document.getElementById('activeFormat').value;
+        let inputText = '';
+        if (format === 'quick') {
+            inputText = document.getElementById('quickTextarea').value;
+        } else if (format === 'markdown') {
+            inputText = document.getElementById('markdownTextarea').value;
+        } else if (format === 'yaml') {
+            inputText = document.getElementById('yamlTextarea').value;
+        }
+        
+        const previewResult = document.getElementById('previewResult');
+        const previewError = document.getElementById('previewError');
+        const previewContent = document.getElementById('previewContent');
+        const taskCount = document.getElementById('taskCount');
+        const taskList = document.getElementById('taskList');
+        const confirmLaunch = document.getElementById('confirmLaunch');
+        
+        previewResult.style.display = 'block';
+        previewError.style.display = 'none';
+        previewContent.style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/runs/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ repo, format, input_text: inputText })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                taskCount.textContent = `${data.count} tasks parsed`;
+                taskList.innerHTML = '';
+                data.tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.style.marginBottom = '1rem';
+                    li.style.padding = '0.75rem';
+                    li.style.backgroundColor = '#16213e';
+                    li.style.borderRadius = '4px';
+                    
+                    const desc = task.description || '';
+                    const truncated = desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
+                    const context = task.context_files || [];
+                    const contextText = context.length > 0 ? `Context files: ${context.join(', ')}` : 'No context files';
+                    
+                    li.innerHTML = `
+                        <div style="color: #eee; margin-bottom: 0.25rem;">${truncated}</div>
+                        <div style="color: #aaa; font-size: 0.875rem;">${contextText}</div>
+                    `;
+                    taskList.appendChild(li);
+                });
+                previewContent.style.display = 'block';
+                
+                // Set up confirm button
+                confirmLaunch.onclick = () => {
+                    // Reuse the same data to start the run
+                    fetch('/api/runs/start', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ repo, format, input_text: inputText })
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json();
+                        } else {
+                            return response.text().then(text => { throw new Error(text); });
+                        }
+                    })
+                    .then(data => {
+                        alert(`Run started with ID: ${data.run_id}`);
+                        location.reload();
+                    })
+                    .catch(err => {
+                        alert(`Error: ${err.message}`);
+                    });
+                };
+            } else {
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    previewError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    previewError.textContent = `Error: ${errorText}`;
+                }
+                previewError.style.display = 'block';
+            }
+        } catch (err) {
+            previewError.textContent = `Network error: ${err.message}`;
+            previewError.style.display = 'block';
         }
     });
     
@@ -106,6 +289,63 @@
             }
         } catch (err) {
             alert(`Network error: ${err.message}`);
+        }
+    }
+    
+    // File upload handling
+    const fileInput = document.getElementById('fileUpload');
+    const fileNameDisplay = document.getElementById('fileName');
+    const uploadButton = document.getElementById('uploadButton');
+    
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            fileNameDisplay.textContent = fileInput.files[0].name;
+            uploadButton.disabled = false;
+        } else {
+            fileNameDisplay.textContent = 'No file selected';
+            uploadButton.disabled = true;
+        }
+    });
+    
+    async function uploadFile() {
+        const repo = document.getElementById('uploadRepoSelect').value;
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Please select a file');
+            return;
+        }
+        
+        const formError = document.getElementById('formError');
+        formError.style.display = 'none';
+        
+        const formData = new FormData();
+        formData.append('repo', repo);
+        formData.append('file', file);
+        
+        try {
+            const response = await fetch('/api/runs/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                alert(`Run started with ID: ${data.run_id}`);
+                location.reload();
+            } else {
+                // Try to parse JSON error
+                try {
+                    const errorData = await response.json();
+                    formError.textContent = `Error: ${errorData.error}`;
+                } catch {
+                    const errorText = await response.text();
+                    formError.textContent = `Error: ${errorText}`;
+                }
+                formError.style.display = 'block';
+            }
+        } catch (err) {
+            formError.textContent = `Network error: ${err.message}`;
+            formError.style.display = 'block';
         }
     }
 </script>
