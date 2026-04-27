@@ -111,14 +111,20 @@
     <nav>
         <div class="container nav-container">
             <a href="/" class="nav-title">
-                <!-- Single-eye logo matching favicon proportions; white outline + red pupil on dark nav -->
-                <svg width="40" height="24" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M3,30 C18,5 82,5 97,30 C82,55 18,55 3,30 Z"
-                          fill="none" stroke="#eee" stroke-width="5" stroke-linejoin="round"/>
-                    <circle cx="50" cy="30" r="17" fill="none" stroke="#eee" stroke-width="5"/>
-                    <circle cx="50" cy="30" r="9" fill="#e94560"/>
-                </svg>
                 Red-Eye Agent
+                <!-- Two eyes after name: left = all red, right = all white -->
+                <svg width="72" height="24" viewBox="0 0 180 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="margin-left:0.5rem;">
+                    <!-- Left eye: all red -->
+                    <path d="M3,30 C18,5 82,5 97,30 C82,55 18,55 3,30 Z"
+                          fill="none" stroke="#e94560" stroke-width="5" stroke-linejoin="round"/>
+                    <circle cx="50" cy="30" r="17" fill="none" stroke="#e94560" stroke-width="5"/>
+                    <circle cx="50" cy="30" r="9" fill="#e94560"/>
+                    <!-- Right eye: all white -->
+                    <path d="M83,30 C98,5 162,5 177,30 C162,55 98,55 83,30 Z"
+                          fill="none" stroke="#eee" stroke-width="5" stroke-linejoin="round"/>
+                    <circle cx="130" cy="30" r="17" fill="none" stroke="#eee" stroke-width="5"/>
+                    <circle cx="130" cy="30" r="9" fill="#eee"/>
+                </svg>
             </a>
             <div class="nav-links">
                 <a href="/command-center">Command Center</a>
