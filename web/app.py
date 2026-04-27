@@ -135,55 +135,9 @@ async def logout(response: Response):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(
-    request: Request,
-    user_email: str = Depends(get_current_user)
-):
-    """Dashboard page showing repos and task counts."""
-    # Load repos from config.yaml
-    repos = []
-    if AGENT_CONFIG_PATH.exists():
-        with open(AGENT_CONFIG_PATH, 'r') as f:
-            config = yaml.safe_load(f)
-            repos = config.get('repos', [])
-    
-    # Load task counts from checklist.yaml
-    task_counts = {"pending": 0, "done": 0, "failed": 0, "total": 0}
-    if AGENT_CHECKLIST_PATH.exists():
-        with open(AGENT_CHECKLIST_PATH, 'r') as f:
-            checklist = yaml.safe_load(f)
-            task_list = checklist.get('tasks', [])
-            task_counts["total"] = len(task_list)
-            for task in task_list:
-                s = task.get('status', 'pending').lower()
-                if s == 'done':
-                    task_counts['done'] += 1
-                elif s in task_counts:
-                    task_counts[s] += 1
-
-    # Recent runs from log directory
-    recent_runs = []
-    if AGENT_LOG_DIR.exists():
-        for f in sorted(AGENT_LOG_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
-            if f.is_file():
-                recent_runs.append({"filename": f.name, "date": f.name.replace("run_", "").replace(".log", "")})
-    
-    # Active runs from RunManager
-    manager = RunManager()
-    all_runs = manager.list_runs()
-    active_runs = [run for run in all_runs if run.get("status") == "running"]
-    
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {
-            "user_email": user_email,
-            "repos": repos,
-            "tasks": task_counts,
-            "recent_runs": recent_runs,
-            "active_runs": active_runs
-        }
-    )
+async def root_redirect():
+    """Redirect root to command center."""
+    return RedirectResponse(url="/command-center", status_code=302)
 
 
 @app.get("/checklist", response_class=HTMLResponse)
@@ -237,39 +191,9 @@ async def checklist_page(
 
 
 @app.get("/runs", response_class=HTMLResponse)
-async def runs_list(
-    request: Request,
-    user_email: str = Depends(get_current_user)
-):
-    """List all run log files sorted newest first."""
-    if not AGENT_LOG_DIR.exists():
-        AGENT_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    
-    log_files = []
-    for file_path in AGENT_LOG_DIR.iterdir():
-        if file_path.is_file() and file_path.name.startswith('run_'):
-            name = file_path.name
-            # Parse timestamp from filename like run_20260415_234820.log
-            ts = name.replace('run_', '').replace('.log', '')
-            display = ts[:8] + ' ' + ts[9:] if len(ts) > 8 else ts
-            log_files.append({
-                'filename': name,
-                'display_name': name,
-                'timestamp': display,
-                'modified': file_path.stat().st_mtime
-            })
-    
-    # Sort by modified time descending (newest first)
-    log_files.sort(key=lambda x: x['modified'], reverse=True)
-    
-    return templates.TemplateResponse(
-        request,
-        "runs.html",
-        {
-            "user_email": user_email,
-            "log_files": log_files
-        }
-    )
+async def runs_redirect():
+    """Run history is now part of command center."""
+    return RedirectResponse(url="/command-center", status_code=302)
 
 
 @app.get("/runs/{filename}", response_class=HTMLResponse)
@@ -309,7 +233,7 @@ async def command_center(
     request: Request,
     user_email: str = Depends(get_current_user)
 ):
-    """Command center page showing repos and active runs."""
+    """All-in-one command center."""
     # Load repos from config.yaml
     config_repos = []
     if AGENT_CONFIG_PATH.exists():
@@ -317,15 +241,42 @@ async def command_center(
             config = yaml.safe_load(f)
             config_repos = config.get('repos', [])
 
-    # Connected repos (config.yaml) — shown in Launch New Run
     connected_repo_names = sorted([r['name'] for r in config_repos])
-
-    # All repos accessible via GitHub PAT — shown in Upload & Run
     all_repo_names = merge_with_config(config_repos)
 
-    # Get active runs via RunManager
+    # Active/all runs
     manager = RunManager()
     active_runs = manager.list_runs()
+
+    # Run log files (history)
+    log_files = []
+    if AGENT_LOG_DIR.exists():
+        for file_path in AGENT_LOG_DIR.iterdir():
+            if file_path.is_file() and file_path.name.startswith('run_'):
+                name = file_path.name
+                ts = name.replace('run_', '').replace('.log', '')
+                display = ts[:8] + ' ' + ts[9:] if len(ts) > 8 else ts
+                log_files.append({
+                    'filename': name,
+                    'display_name': name,
+                    'timestamp': display,
+                    'modified': file_path.stat().st_mtime
+                })
+        log_files.sort(key=lambda x: x['modified'], reverse=True)
+
+    # Checklist data
+    tasks = []
+    checklist_raw = ""
+    if AGENT_CHECKLIST_PATH.exists():
+        with open(AGENT_CHECKLIST_PATH, 'r') as f:
+            checklist_raw = f.read()
+        try:
+            parsed = yaml.safe_load(checklist_raw)
+            tasks = parsed.get('tasks', []) if parsed else []
+        except yaml.YAMLError:
+            tasks = []
+
+    checklist_error = request.query_params.get("error", "")
 
     return templates.TemplateResponse(
         request,
@@ -334,7 +285,11 @@ async def command_center(
             "user_email": user_email,
             "repos": connected_repo_names,
             "all_repos": all_repo_names,
-            "active_runs": active_runs
+            "active_runs": active_runs,
+            "log_files": log_files,
+            "tasks": tasks,
+            "checklist_raw": checklist_raw,
+            "checklist_error": checklist_error,
         }
     )
 
@@ -382,6 +337,21 @@ async def command_center_help(
     )
 
 
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(
+    request: Request,
+    user_email: str = Depends(get_current_user)
+):
+    """Settings page."""
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "user_email": user_email
+        }
+    )
+
+
 @app.post("/checklist/save")
 async def checklist_save(
     request: Request,
@@ -395,7 +365,7 @@ async def checklist_save(
             raise ValueError("YAML must have a 'tasks' key that is a list")
     except Exception as e:
         # Redirect with error query parameter
-        return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url="/command-center?error=1", status_code=status.HTTP_302_FOUND)
     
     # Write to file
     try:
@@ -403,9 +373,9 @@ async def checklist_save(
             f.write(tasks_yaml)
     except Exception as e:
         # If file write fails, also redirect with error
-        return RedirectResponse(url="/checklist?error=1", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url="/command-center?error=1", status_code=status.HTTP_302_FOUND)
     
-    return RedirectResponse(url="/checklist", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url="/command-center", status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/api/runs/preview")

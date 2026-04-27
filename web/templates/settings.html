@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Settings — Red-Eye Agent{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Settings</h1>
+
+<div class="card">
+    <h2>Account</h2>
+    <div style="margin-top: 1rem;">
+        <p style="margin-bottom: 0.75rem;">
+            <span style="color: #eee; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Email</span><br>
+            <strong style="font-size: 1.05rem;">{{ user_email }}</strong>
+        </p>
+        <p style="color: #eee; font-size: 0.9rem; margin-top: 1.25rem; padding: 0.75rem 1rem; background-color: #0f3460; border-radius: 6px; border-left: 3px solid #e94560;">
+            Password change and account management coming soon.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Subscription</h2>
+    <div style="margin-top: 1rem; display: flex; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap;">
+        <div style="background-color: #0f3460; padding: 1rem 1.5rem; border-radius: 8px; border: 2px solid #e94560; min-width: 140px;">
+            <p style="font-weight: bold; font-size: 1rem; margin-bottom: 0.25rem;">Founder</p>
+            <p style="color: #e94560; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Current plan</p>
+        </div>
+        <div style="flex: 1; min-width: 200px;">
+            <p style="color: #eee; font-size: 0.9rem; margin-bottom: 0.5rem;">Future plans will unlock higher run concurrency, longer context windows, and priority queue access.</p>
+            <p style="color: #eee; font-size: 0.85rem; opacity: 0.6;">Billing management coming soon.</p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Appearance</h2>
+    <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+        <div style="background-color: #1a1a2e; border: 2px solid #e94560; border-radius: 8px; padding: 0.75rem 1.25rem; cursor: not-allowed; opacity: 0.7;">
+            <span style="font-size: 0.85rem; font-weight: bold;">Dark (default)</span>
+        </div>
+        <div style="background-color: #f1f5f9; border: 2px solid #0f3460; border-radius: 8px; padding: 0.75rem 1.25rem; cursor: not-allowed; opacity: 0.4;">
+            <span style="color: #1a1a2e; font-size: 0.85rem; font-weight: bold;">Light</span>
+        </div>
+        <div style="background: linear-gradient(135deg, #1a1a2e, #0f3460); border: 2px solid #0f3460; border-radius: 8px; padding: 0.75rem 1.25rem; cursor: not-allowed; opacity: 0.4;">
+            <span style="font-size: 0.85rem; font-weight: bold;">Midnight</span>
+        </div>
+    </div>
+    <p style="color: #eee; font-size: 0.85rem; opacity: 0.6;">Theme switching coming soon.</p>
+</div>
+
+<div class="card">
+    <h2>Integrations</h2>
+    <div style="margin-top: 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #0f3460;">
+            <div>
+                <p style="font-weight: bold; margin-bottom: 0.2rem;">GitHub</p>
+                <p style="color: #eee; font-size: 0.85rem;">Connected via Personal Access Token</p>
+            </div>
+            <span style="background:#10b981;color:white;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;">Active</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #0f3460; opacity: 0.5;">
+            <div>
+                <p style="font-weight: bold; margin-bottom: 0.2rem;">Slack</p>
+                <p style="color: #eee; font-size: 0.85rem;">Notify on run completion</p>
+            </div>
+            <span style="background:#6b7280;color:white;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;">Coming soon</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; opacity: 0.5;">
+            <div>
+                <p style="font-weight: bold; margin-bottom: 0.2rem;">Webhooks</p>
+                <p style="color: #eee; font-size: 0.85rem;">Post run events to external endpoints</p>
+            </div>
+            <span style="background:#6b7280;color:white;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;">Coming soon</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

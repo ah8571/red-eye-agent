@@ -124,6 +124,73 @@
     </table>
 </div>
 
+<div class="card">
+    <h2>Run History</h2>
+    {% if log_files %}
+    <ul style="list-style: none; padding: 0; margin-top: 1rem;">
+        {% for file in log_files %}
+        <li style="padding: 0.6rem 0; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center;">
+            <a href="/runs/{{ file.filename }}" style="color: #e94560;">{{ file.display_name }}</a>
+            <span style="color: #eee; font-size: 0.875rem;">{{ file.timestamp }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #eee; margin-top: 1rem;">No run logs yet.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Checklist</h2>
+    {% if checklist_error %}
+    <div style="background-color: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ef4444;">
+        Invalid YAML — please check your syntax.
+    </div>
+    {% endif %}
+    {% if tasks %}
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; margin-bottom: 1.5rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f3460;">
+                <th style="text-align: left; padding: 0.5rem; width: 3rem;">#</th>
+                <th style="text-align: left; padding: 0.5rem; width: 7rem;">Status</th>
+                <th style="text-align: left; padding: 0.5rem;">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr style="border-bottom: 1px solid #0f3460;">
+                <td style="padding: 0.5rem;">{{ task.id }}</td>
+                <td style="padding: 0.5rem;">
+                    {% set s = task.status | default('pending') | lower %}
+                    {% if s in ('done', 'completed') %}
+                        <span style="background:#10b981;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">done</span>
+                    {% elif s == 'failed' %}
+                        <span style="background:#ef4444;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">failed</span>
+                    {% elif s == 'in_progress' %}
+                        <span style="background:#3b82f6;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">running</span>
+                    {% else %}
+                        <span style="background:#f59e0b;color:white;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.8rem;">pending</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 0.5rem;">{{ task.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #eee; margin-top: 1rem; margin-bottom: 1.5rem;">No tasks in checklist yet.</p>
+    {% endif %}
+    <details>
+        <summary style="cursor: pointer; color: #e94560; font-weight: bold; padding: 0.5rem 0; user-select: none;">Edit Checklist YAML &#9662;</summary>
+        <form method="post" action="/checklist/save" style="margin-top: 1rem;">
+            <textarea name="tasks_yaml" style="width:100%;min-height:250px;background-color:#16213e;color:#eee;font-family:monospace;padding:0.75rem;border:1px solid #0f3460;border-radius:4px;resize:vertical;">{{ checklist_raw }}</textarea>
+            <div style="margin-top: 0.75rem;">
+                <button type="submit" style="background-color:#e94560;color:white;padding:0.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">Save Checklist</button>
+            </div>
+        </form>
+    </details>
+</div>
+
 <script>
     // Task builder (Quick tab)
     const taskBuilderItems = [];
