@@ -95,14 +95,55 @@
             border-top: 1px solid #0f3460;
             margin-top: 2rem;
         }
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background-color: #eee;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+        }
+        .hamburger:hover span {
+            background-color: #e94560;
+        }
         @media (max-width: 768px) {
-            .nav-container {
-                flex-direction: column;
-                gap: 1rem;
+            .hamburger {
+                display: flex;
             }
             .nav-links {
-                flex-wrap: wrap;
-                justify-content: center;
+                display: none;
+                flex-direction: column;
+                gap: 0;
+                position: absolute;
+                top: 100%;
+                right: 0;
+                background-color: #16213e;
+                border: 1px solid #0f3460;
+                border-top: none;
+                min-width: 160px;
+                z-index: 100;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid #0f3460;
+            }
+            .nav-links a:last-child {
+                border-bottom: none;
+            }
+            .nav-container {
+                position: relative;
             }
         }
     </style>
@@ -112,21 +153,18 @@
         <div class="container nav-container">
             <a href="/" class="nav-title">
                 Red-Eye Agent
-                <!-- Two eyes after name: left = all red, right = all white -->
-                <svg width="84" height="24" viewBox="0 0 210 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="margin-left:0.5rem;">
-                    <!-- Left eye: all red -->
+                <!-- Single red eye -->
+                <svg width="32" height="24" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="margin-left:0.5rem;">
                     <path d="M3,30 C18,5 82,5 97,30 C82,55 18,55 3,30 Z"
                           fill="none" stroke="#e94560" stroke-width="5" stroke-linejoin="round"/>
                     <circle cx="50" cy="30" r="17" fill="none" stroke="#e94560" stroke-width="5"/>
                     <circle cx="50" cy="30" r="9" fill="#e94560"/>
-                    <!-- Right eye: all white -->
-                    <path d="M113,30 C128,5 192,5 207,30 C192,55 128,55 113,30 Z"
-                          fill="none" stroke="#eee" stroke-width="5" stroke-linejoin="round"/>
-                    <circle cx="160" cy="30" r="17" fill="none" stroke="#eee" stroke-width="5"/>
-                    <circle cx="160" cy="30" r="9" fill="#eee"/>
                 </svg>
             </a>
-            <div class="nav-links">
+            <button class="hamburger" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="nav-links" id="navLinks">
                 <a href="/command-center">Command Center</a>
                 <a href="/settings">Settings</a>
                 {% if user_email is defined and user_email %}
@@ -145,5 +183,18 @@
             Red-Eye Agent &copy; {{ now.year if now else '2025' }}
         </div>
     </footer>
+
+    <script>
+        const navToggle = document.getElementById('navToggle');
+        const navLinks = document.getElementById('navLinks');
+        navToggle.addEventListener('click', () => {
+            const open = navLinks.classList.toggle('open');
+            navToggle.setAttribute('aria-expanded', open);
+        });
+        // Close menu when a link is clicked
+        navLinks.querySelectorAll('a').forEach(a => {
+            a.addEventListener('click', () => navLinks.classList.remove('open'));
+        });
+    </script>
 </body>
 </html>
