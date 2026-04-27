@@ -12,7 +12,7 @@
             <label for="repoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
             <select id="repoSelect" style="width: 100%; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
                 {% for repo in repos %}
-                <option value="{{ repo.name }}">{{ repo.name }}</option>
+                <option value="{{ repo }}">{{ repo }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -62,7 +62,7 @@
             <label for="uploadRepoSelect" style="display: block; margin-bottom: 0.5rem;">Repository</label>
             <select id="uploadRepoSelect" style="width: 100%; max-width: 300px; padding: 0.5rem; background-color: #0f3460; color: #eee; border: 1px solid #0f3460; border-radius: 4px;">
                 {% for repo in repos %}
-                <option value="{{ repo.name }}">{{ repo.name }}</option>
+                <option value="{{ repo }}">{{ repo }}</option>
                 {% endfor %}
             </select>
         </div>
